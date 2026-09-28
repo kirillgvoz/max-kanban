@@ -1,0 +1,9 @@
+node_modules
+frontend/node_modules
+frontend/dist
+*.db
+*.db-shm
+*.db-wal
+.git
+.env
+taskflow.exe
