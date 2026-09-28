@@ -1,0 +1,37 @@
+{
+  "organization": {
+    "name": "API Evaluation Team"
+  },
+  "board": {
+    "name": "Evaluation Board",
+    "description": "Board created by the API conformance checks.",
+    "columns": [
+      { "name": "К выполнению", "color": "#6366F1" },
+      { "name": "В работе", "color": "#F59E0B" },
+      { "name": "Готово", "color": "#10B981" }
+    ]
+  },
+  "task": {
+    "title": "Verify task lifecycle",
+    "description": "Created by the API conformance checks.",
+    "priority": "high"
+  },
+  "moved_task": {
+    "position": 0
+  },
+  "member": {
+    "user_id": 9002,
+    "username": "api-admin",
+    "display_name": "API Admin",
+    "role": "admin"
+  },
+  "comment": {
+    "text": "API conformance comment."
+  },
+  "checklist": {
+    "title": "API checklist",
+    "item": {
+      "text": "Verify one item"
+    }
+  }
+}

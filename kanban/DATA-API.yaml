@@ -1,0 +1,186 @@
+config_version: "1"
+solution: TaskFlow Kanban
+base_url: https://kirillgvoz.ru/max-kanban
+authentication:
+  mechanism: MAX WebApp initData signature
+  header: X-Max-InitData
+  test_identities:
+    - role: owner
+      user_id: 9001
+      username: api-owner
+      display_name: API Owner
+    - role: admin
+      user_id: 9002
+      username: api-admin
+      display_name: API Admin
+    - role: member
+      user_id: 9003
+      username: api-member
+      display_name: API Member
+    - role: outsider
+      user_id: 9004
+      username: api-outsider
+      display_name: API Outsider
+  signature:
+    note: Identities are synthetic API-check accounts. Generate a valid header value with the evaluation bot token.
+    command: MAX_BOT_TOKEN=<evaluation-bot-token> go run ./scripts/sign-test-initdata --user-id <user-id> --username <username> --display-name "<display-name>"
+    example_command: MAX_BOT_TOKEN=<evaluation-bot-token> go run ./scripts/sign-test-initdata --user-id 9001 --username api-owner --display-name "API Owner"
+test_data: testdata/api-fixtures.json
+mandatory_checks:
+  - id: health
+    name: Service reports healthy status and database availability.
+    role: anonymous
+    method: GET
+    path: /api/health
+    request: {}
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [status, version, revision, uptime, database]
+      values:
+        status: ok
+        database: ok
+  - id: validate-auth
+    name: Synthetic owner initData is accepted.
+    role: owner
+    method: POST
+    path: /api/auth/validate
+    request:
+      body:
+        initData: ${OWNER_INITDATA}
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [ok, user]
+      values:
+        ok: true
+        user.user_id: 9001
+  - id: create-organization
+    name: Owner creates the evaluation organization.
+    role: owner
+    method: POST
+    path: /api/orgs
+    request:
+      body:
+        $ref_fixture: organization
+    expected_status: [201]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [id, name, slug, created_by, created_at]
+    captures:
+      org_id: $.id
+  - id: add-admin-and-member
+    name: Owner assigns admin and member roles.
+    role: owner
+    method: POST
+    path: /api/orgs/{org_id}/members
+    request:
+      repeated_body:
+        - user_id: 9002
+          username: api-admin
+          display_name: API Admin
+          role: admin
+        - user_id: 9003
+          username: api-member
+          display_name: API Member
+          role: member
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [ok]
+      values:
+        ok: true
+  - id: admin-creates-board
+    name: Admin creates a board with custom statuses.
+    role: admin
+    method: POST
+    path: /api/orgs/{org_id}/boards
+    request:
+      body:
+        $ref_fixture: board
+    expected_status: [201]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [id, org_id, name, is_archived, created_by, created_at]
+    captures:
+      board_id: $.id
+  - id: member-creates-task
+    name: Member creates a task in the first status.
+    role: member
+    method: POST
+    path: /api/boards/{board_id}/tasks
+    request:
+      body:
+        $ref_fixture: task
+    expected_status: [201]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [id, board_id, column_id, title, position, priority, created_by, created_at, updated_at]
+    captures:
+      task_id: $.id
+      first_column_id: $.column_id
+  - id: member-moves-task
+    name: Member moves the task to the next status.
+    role: member
+    method: PUT
+    path: /api/tasks/{task_id}/move
+    request:
+      body:
+        column_id: ${second_column_id}
+        position: 0
+      note: second_column_id is the board's status whose position is 1, obtained from GET /api/boards/{board_id}.
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [id, board_id, column_id, title, position, priority, updated_at]
+  - id: member-assigns-self
+    name: Member assigns the task to themself.
+    role: member
+    method: POST
+    path: /api/tasks/{task_id}/assign
+    request:
+      body:
+        user_id: 9003
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [task_id, user_id]
+      values:
+        task_id: ${task_id}
+        user_id: 9003
+  - id: member-adds-comment
+    name: Member adds a checklist and comment.
+    role: member
+    method: POST
+    path: /api/tasks/{task_id}/comments
+    request:
+      body:
+        $ref_fixture: comment
+    expected_status: [201]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [id, task_id, user_id, text, created_at]
+  - id: outsider-cannot-read-board
+    name: A non-member cannot read the evaluation board.
+    role: outsider
+    method: GET
+    path: /api/boards/{board_id}
+    request: {}
+    expected_status: [404]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [error]
+  - id: admin-archives-board
+    name: Admin archives the evaluation board after the checks.
+    role: admin
+    method: PATCH
+    path: /api/boards/{board_id}
+    request:
+      body:
+        is_archived: true
+    expected_status: [200]
+    expected_content_type: application/json
+    expected_json:
+      required_fields: [ok]
+      values:
+        ok: true

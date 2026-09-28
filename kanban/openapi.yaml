@@ -1,0 +1,2023 @@
+openapi: 3.1.0
+info:
+  title: TaskFlow Kanban API
+  version: 2.1.0
+  description: |
+    Backend API for the TaskFlow Kanban MAX mini-application.
+    Unless stated otherwise, API operations require valid MAX WebApp
+    initialization data supplied in the X-Max-InitData header.
+servers:
+  - url: https://kirillgvoz.ru
+    description: Production deployment
+  - url: http://localhost:9300
+    description: Local Docker deployment
+security:
+  - MaxInitData: []
+components:
+  securitySchemes:
+    MaxInitData:
+      type: apiKey
+      in: header
+      name: X-Max-InitData
+      description: Signed MAX WebApp initialization data.
+    MaxWebhookSecret:
+      type: apiKey
+      in: header
+      name: X-Max-Bot-Api-Secret
+      description: Shared webhook secret configured on both MAX and TaskFlow.
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    AuthRequest:
+      type: object
+      required: [initData]
+      properties:
+        initData:
+          type: string
+          description: Raw signed MAX WebApp initialization data.
+    AuthUser:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        display_name:
+          type: string
+    AuthResponse:
+      type: object
+      required: [ok, user]
+      properties:
+        ok:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        error:
+          type: string
+    Organization:
+      type: object
+      required: [id, name, slug, created_by, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        slug:
+          type: string
+        avatar_url:
+          type: string
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+    OrgMember:
+      type: object
+      required: [org_id, user_id, role, joined_at]
+      properties:
+        org_id:
+          type: integer
+          format: int64
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        display_name:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        joined_at:
+          type: string
+          format: date-time
+    OrgDetail:
+      allOf:
+        - $ref: '#/components/schemas/Organization'
+        - type: object
+          required: [members]
+          properties:
+            members:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrgMember'
+    OrgCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+    OrgUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        avatar_url:
+          type: string
+          maxLength: 500
+    MemberCreate:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          minimum: 1
+        username:
+          type: string
+          maxLength: 100
+        display_name:
+          type: string
+          maxLength: 150
+        role:
+          type: string
+          enum: [admin, member]
+          default: member
+    Board:
+      type: object
+      required: [id, org_id, name, is_archived, created_by, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        org_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+        is_archived:
+          type: boolean
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+    BoardDetail:
+      allOf:
+        - $ref: '#/components/schemas/Board'
+        - type: object
+          required: [columns, members]
+          properties:
+            columns:
+              type: array
+              items:
+                $ref: '#/components/schemas/Column'
+            members:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrgMember'
+    BoardColumnInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+    BoardCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        columns:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/BoardColumnInput'
+    BoardUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        is_archived:
+          type: boolean
+    Column:
+      type: object
+      required: [id, board_id, name, position, color]
+      properties:
+        id:
+          type: integer
+          format: int64
+        board_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+    ColumnCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        position:
+          type: integer
+          minimum: 0
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+    ColumnUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+    ColumnReorder:
+      type: object
+      required: [column_ids]
+      properties:
+        column_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+    Assignee:
+      type: object
+      required: [task_id, user_id]
+      properties:
+        task_id:
+          type: integer
+          format: int64
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        display_name:
+          type: string
+    Task:
+      type: object
+      required: [id, board_id, column_id, title, position, priority, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        board_id:
+          type: integer
+          format: int64
+        column_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        deadline:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        assignees:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignee'
+    ChecklistItem:
+      type: object
+      required: [id, checklist_id, text, is_done, position]
+      properties:
+        id:
+          type: integer
+          format: int64
+        checklist_id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        is_done:
+          type: boolean
+        position:
+          type: integer
+          minimum: 0
+    Checklist:
+      type: object
+      required: [id, task_id, title, position, items]
+      properties:
+        id:
+          type: integer
+          format: int64
+        task_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChecklistItem'
+    Comment:
+      type: object
+      required: [id, task_id, user_id, text, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        task_id:
+          type: integer
+          format: int64
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        display_name:
+          type: string
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    TaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          required: [checklists, comments]
+          properties:
+            checklists:
+              type: array
+              items:
+                $ref: '#/components/schemas/Checklist'
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          maxLength: 10000
+        column_id:
+          type: integer
+          format: int64
+          minimum: 1
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        deadline:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          maxLength: 10000
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        deadline:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    TaskMove:
+      type: object
+      required: [column_id, position]
+      properties:
+        column_id:
+          type: integer
+          format: int64
+          minimum: 1
+        position:
+          type: integer
+          minimum: 0
+    TaskAssign:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          minimum: 1
+    ChecklistCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 120
+    ChecklistUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+    ChecklistItemCreate:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+    ChecklistItemUpdate:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        is_done:
+          type: boolean
+    CommentCreate:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    BoardChat:
+      type: object
+      required: [id, board_id, chat_id, created_by, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        board_id:
+          type: integer
+          format: int64
+        chat_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+    BoardChatCreate:
+      type: object
+      required: [chat_id]
+      properties:
+        chat_id:
+          type: integer
+          format: int64
+        title:
+          type: string
+          maxLength: 200
+    WebSocketTicketRequest:
+      type: object
+      required: [org_id]
+      properties:
+        org_id:
+          type: integer
+          format: int64
+          minimum: 1
+    WebSocketTicket:
+      type: object
+      required: [ticket]
+      properties:
+        ticket:
+          type: string
+    Health:
+      type: object
+      required: [status, version, revision, uptime, database]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        version:
+          type: string
+        revision:
+          type: string
+        uptime:
+          type: string
+        database:
+          type: string
+          enum: [ok, unavailable]
+    Metrics:
+      type: object
+      required: [websocket_clients, notification_outbox, schema_migrations]
+      properties:
+        websocket_clients:
+          type: integer
+        notification_outbox:
+          type: object
+          required: [pending, sent, failed]
+          properties:
+            pending:
+              type: integer
+            sent:
+              type: integer
+            failed:
+              type: integer
+        schema_migrations:
+          type: integer
+    MaxUpdate:
+      type: object
+      required: [update_type]
+      properties:
+        update_type:
+          type: string
+          enum: [message_created, message_callback, bot_started, bot_added]
+      additionalProperties: true
+paths:
+  /max-kanban/api/auth/validate:
+    post:
+      operationId: validateMaxAuth
+      summary: Validate MAX WebApp initialization data.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: Authentication result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request or user payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid signature.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/ws-ticket:
+    post:
+      operationId: createWebSocketTicket
+      summary: Issue a single-use organization WebSocket ticket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebSocketTicketRequest'
+      responses:
+        '200':
+          description: Ticket issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebSocketTicket'
+        '400':
+          description: Invalid organization identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/orgs:
+    get:
+      operationId: listOrganizations
+      summary: List organizations for the authenticated user.
+      responses:
+        '200':
+          description: Organizations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createOrganization
+      summary: Create an organization and become its owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgCreate'
+      responses:
+        '201':
+          description: Organization created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Invalid name.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/orgs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: getOrganization
+      summary: Get an organization with members.
+      responses:
+        '200':
+          description: Organization detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgDetail'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: updateOrganization
+      summary: Update an organization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgUpdate'
+      responses:
+        '200':
+          description: Organization updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid organization data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/orgs/{id}/members:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      operationId: addOrganizationMember
+      summary: Add or update an organization member.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreate'
+      responses:
+        '200':
+          description: Member saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid member data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Organization must retain an owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/orgs/{id}/members/{uid}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    delete:
+      operationId: removeOrganizationMember
+      summary: Remove an organization member.
+      responses:
+        '200':
+          description: Member removed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Member not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Organization must retain an owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/orgs/{id}/boards:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: listBoards
+      summary: List organization boards.
+      parameters:
+        - name: include_archived
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Boards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Board'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createBoard
+      summary: Create a board with optional custom statuses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardCreate'
+      responses:
+        '201':
+          description: Board created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          description: Invalid board or status data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/boards/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: getBoard
+      summary: Get a board with statuses and members.
+      responses:
+        '200':
+          description: Board detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardDetail'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: updateBoard
+      summary: Update or archive a board.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardUpdate'
+      responses:
+        '200':
+          description: Board updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid board data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: archiveBoard
+      summary: Archive a board without deleting its history.
+      responses:
+        '200':
+          description: Board archived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/boards/{id}/columns:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      operationId: createColumn
+      summary: Create a board status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ColumnCreate'
+      responses:
+        '201':
+          description: Status created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Column'
+        '400':
+          description: Invalid status data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Board already has the maximum number of statuses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/boards/{id}/columns/reorder:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    patch:
+      operationId: reorderColumns
+      summary: Replace the order of all board statuses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ColumnReorder'
+      responses:
+        '200':
+          description: Statuses reordered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Order must contain every status exactly once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/columns/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    patch:
+      operationId: updateColumn
+      summary: Update a board status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ColumnUpdate'
+      responses:
+        '200':
+          description: Status updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid status data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Status not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteColumn
+      summary: Delete an empty board status.
+      responses:
+        '200':
+          description: Status deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Status not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Status still contains tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/boards/{id}/tasks:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: listTasks
+      summary: List board tasks.
+      responses:
+        '200':
+          description: Tasks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createTask
+      summary: Create a task on a board.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid task or status data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Board has no status for new tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: getTask
+      summary: Get a task with checklists and comments.
+      responses:
+        '200':
+          description: Task detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: updateTask
+      summary: Update task fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid task data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteTask
+      summary: Delete a task.
+      responses:
+        '200':
+          description: Task deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}/move:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    put:
+      operationId: moveTask
+      summary: Move a task to another status and position.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskMove'
+      responses:
+        '200':
+          description: Task moved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid status or position.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}/assign:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      operationId: assignTask
+      summary: Assign an organization member to a task.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskAssign'
+      responses:
+        '200':
+          description: Task assigned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignee'
+        '400':
+          description: Invalid assignee.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}/assign/{uid}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    delete:
+      operationId: unassignTask
+      summary: Remove an assignee from a task.
+      responses:
+        '200':
+          description: Assignee removed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task or assignee not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}/checklists:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      operationId: createChecklist
+      summary: Create a task checklist.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistCreate'
+      responses:
+        '201':
+          description: Checklist created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checklist'
+        '400':
+          description: Invalid checklist data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/checklists/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    patch:
+      operationId: updateChecklist
+      summary: Update a checklist title.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistUpdate'
+      responses:
+        '200':
+          description: Checklist updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid checklist data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Checklist not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteChecklist
+      summary: Delete a checklist.
+      responses:
+        '200':
+          description: Checklist deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Checklist not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/checklists/{id}/items:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      operationId: createChecklistItem
+      summary: Add an item to a checklist.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistItemCreate'
+      responses:
+        '201':
+          description: Checklist item created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistItem'
+        '400':
+          description: Invalid checklist item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Checklist not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/checklist-items/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    patch:
+      operationId: updateChecklistItem
+      summary: Update checklist item text or completion state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistItemUpdate'
+      responses:
+        '200':
+          description: Checklist item updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          description: Invalid checklist item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Checklist item not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteChecklistItem
+      summary: Delete a checklist item.
+      responses:
+        '200':
+          description: Checklist item deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Checklist item not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/tasks/{id}/comments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: listComments
+      summary: List task comments.
+      responses:
+        '200':
+          description: Comments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createComment
+      summary: Add a comment to a task.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreate'
+      responses:
+        '201':
+          description: Comment created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Invalid comment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/comments/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    delete:
+      operationId: deleteComment
+      summary: Delete a comment as its author or an admin/owner.
+      responses:
+        '200':
+          description: Comment deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Comment author or admin/owner required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Comment not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/boards/{id}/chats:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      operationId: listBoardChats
+      summary: List working chats linked to a board.
+      responses:
+        '200':
+          description: Board chats.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BoardChat'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: linkBoardChat
+      summary: Link a MAX working chat to a board.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardChatCreate'
+      responses:
+        '201':
+          description: Board chat linked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardChat'
+        '400':
+          description: Invalid chat data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board not found or not accessible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/board-chats/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    delete:
+      operationId: unlinkBoardChat
+      summary: Unlink a MAX working chat from a board.
+      responses:
+        '200':
+          description: Board chat unlinked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin or owner role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Board chat not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/api/health:
+    get:
+      operationId: health
+      summary: Service and database health.
+      security: []
+      responses:
+        '200':
+          description: Healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Database unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /max-kanban/api/metrics:
+    get:
+      operationId: metrics
+      summary: Operational counters.
+      responses:
+        '200':
+          description: Metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+        '401':
+          description: Missing or invalid authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /max-kanban/webhook:
+    post:
+      operationId: maxWebhook
+      summary: Receive MAX bot updates.
+      security:
+        - MaxWebhookSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxUpdate'
+      responses:
+        '200':
+          description: Update accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        '400':
+          description: Invalid JSON payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Invalid webhook secret.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Webhook processing failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

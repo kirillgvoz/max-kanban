@@ -73,5 +73,8 @@ npm run build
 
 - `docs/architecture.md`
 - `docs/api.md`
+- `openapi.yaml`
+- `DATA-API.yaml`
+- `testdata/api-fixtures.json`
 - `docs/operations.md`
 - `docs/testing.md`

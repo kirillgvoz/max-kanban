@@ -160,6 +160,8 @@ func (b *MaxBot) RegisterCommands(ctx context.Context) error {
 		{Name: "start", Description: "Запустить TaskFlow"},
 		{Name: "tasks", Description: "Мои задачи"},
 		{Name: "new", Description: "Новая задача"},
+		{Name: "link", Description: "Привязать доску к чату"},
+		{Name: "unlink", Description: "Отвязать доску от чата"},
 	}
 	_, err := b.do(ctx, http.MethodPatch, "/me/commands", nil, map[string]any{"commands": commands})
 	return err

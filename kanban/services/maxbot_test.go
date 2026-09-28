@@ -106,12 +106,27 @@ func TestRegisterCommandsSendsOneRequest(t *testing.T) {
 		t.Fatalf("requests = %d, want 1", count)
 	}
 	commands, _ := body["commands"].([]any)
-	if len(commands) != 3 {
-		t.Fatalf("commands = %#v", body["commands"])
+	names := make([]string, 0, len(commands))
+	for _, item := range commands {
+		command, _ := item.(map[string]any)
+		name, _ := command["name"].(string)
+		description, _ := command["description"].(string)
+		if name == "" || description == "" {
+			t.Fatalf("command = %#v", item)
+		}
+		names = append(names, name)
 	}
-	first, _ := commands[0].(map[string]any)
-	if first["name"] != "start" || first["description"] == "" {
-		t.Fatalf("command = %#v", first)
+	for _, want := range []string{"start", "tasks", "new", "link", "unlink"} {
+		found := false
+		for _, name := range names {
+			if name == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("commands = %#v, want %q", body["commands"], want)
+		}
 	}
 }
 
