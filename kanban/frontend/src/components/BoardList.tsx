@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 import { useBoards } from "../hooks/useBoards";
 import { api } from "../api/client";
 import { CreateBoardModal, type BoardStatusDraft } from "./CreateBoardModal";
@@ -106,7 +106,7 @@ export function BoardList({ orgId, orgName, onNavigate, user }: BoardListProps) 
 
         {boards.length === 0 && !showCreate && (
           <div className="empty-state">
-            <div className="empty-state-icon">📋</div>
+            <ClipboardList size={48} className="empty-state-icon" aria-hidden="true" />
             <div className="empty-state-text">Нет досок</div>
             <div className="empty-state-hint">Создайте первую доску</div>
           </div>

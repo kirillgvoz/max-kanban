@@ -63,7 +63,7 @@ export function CreateBoardModal({ onSubmit, onClose }: CreateBoardModalProps) {
           ))}
           {statuses.length < 30 && <button className="btn btn--ghost" onClick={() => setStatuses((previous) => [...previous, { name: "", color: "#6B7280" }])}>+ Статус</button>}
         </div>
-        <div className="modal-footer"><button className="btn btn--ghost" onClick={onClose}>Отмена</button><button className="btn btn--primary" onClick={() => void handleSubmit()} disabled={!name.trim() || pending || validStatuses.length === 0}>Создать</button></div>
+        <div className="modal-footer"><button className="btn btn--secondary" onClick={onClose}>Отмена</button><button className="btn btn--primary" onClick={() => void handleSubmit()} disabled={!name.trim() || pending || validStatuses.length === 0}>Создать</button></div>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ interface Window {
       };
     };
     initData?: string;
+    platform?: string;
     close?: () => void;
     expand?: () => void;
     MainButton: {

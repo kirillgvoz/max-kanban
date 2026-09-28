@@ -220,7 +220,7 @@ export function TaskModal({ taskId, columns, members, onClose, user, onDeleted, 
               {task.assignees.map((assignee) => (
                 <span className="assignee-chip" key={assignee.user_id}>
                   {assignee.display_name || assignee.username || `User ${assignee.user_id}`}
-                  <button className="assignee-remove" onClick={() => unassignMember(assignee.user_id)} aria-label={`Снять исполнителя ${assignee.user_id}`}>×</button>
+                  <button className="assignee-remove" onClick={() => unassignMember(assignee.user_id)} aria-label={`Снять исполнителя ${assignee.user_id}`}><X size={14} aria-hidden="true" /></button>
                 </span>
               ))}
               {task.assignees.length === 0 && <div className="muted-text">Исполнители не назначены</div>}
@@ -242,7 +242,7 @@ export function TaskModal({ taskId, columns, members, onClose, user, onDeleted, 
           </section>
           <section className="modal-section">
             <div className="modal-section-header"><span className="modal-section-title">Описание</span>{!editingDescription && <button className="btn btn--ghost btn--sm" onClick={() => setEditingDescription(true)}>Изменить</button>}</div>
-            {editingDescription ? <><textarea className="textarea" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} /><div className="modal-section-actions"><button className="btn btn--ghost btn--sm" onClick={() => setEditingDescription(false)}>Отмена</button><button className="btn btn--primary btn--sm" onClick={saveDescription}>Сохранить</button></div></> : <div className="modal-desc" onClick={() => setEditingDescription(true)}>{task.description || "Добавить описание..."}</div>}
+            {editingDescription ? <><textarea className="textarea" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} /><div className="modal-section-actions"><button className="btn btn--secondary btn--sm" onClick={() => setEditingDescription(false)}>Отмена</button><button className="btn btn--primary btn--sm" onClick={saveDescription}>Сохранить</button></div></> : <div className="modal-desc" onClick={() => setEditingDescription(true)}>{task.description || "Добавить описание..."}</div>}
           </section>
           <section className="modal-section">
             <div className="modal-section-header"><span className="modal-section-title">Чеклисты</span><button className="btn btn--ghost btn--sm" onClick={addChecklist} disabled={saving}>+ Чеклист</button></div>

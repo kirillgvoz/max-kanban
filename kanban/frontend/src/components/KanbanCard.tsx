@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar } from "lucide-react";
+import { Calendar, GripVertical } from "lucide-react";
 import type { Task } from "../types";
 
 interface KanbanCardProps {
@@ -20,9 +20,9 @@ interface CardViewProps extends KanbanCardProps {
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: "#9CA3AF",
-  medium: "#3B82F6",
-  high: "#F59E0B",
-  urgent: "#EF4444",
+  medium: "#007AFF",
+  high: "#FF9500",
+  urgent: "#FF3B30",
 };
 
 function CardView({
@@ -56,7 +56,7 @@ function CardView({
           {...dragListeners}
           onClick={(event) => event.stopPropagation()}
         >
-          ⠿
+          <GripVertical size={14} aria-hidden="true" />
         </div>
       )}
       <div className="kanban-card-content">

@@ -5,6 +5,7 @@ import { api } from "../api/client";
  describe("useWebApp", () => {
   afterEach(() => {
     delete (window as any).WebApp;
+    delete document.documentElement.dataset.maxPlatform;
     vi.restoreAllMocks();
   });
 
@@ -24,10 +25,13 @@ import { api } from "../api/client";
       ready: vi.fn(),
       expand: undefined,
       initData: "signed-data",
+      platform: "ios",
       initDataUnsafe: { user: { id: 42 } },
     };
     const { result } = renderHook(() => useWebApp());
     await waitFor(() => expect(result.current.state).toBe("authenticated"));
     expect(result.current.user?.user_id).toBe(42);
+    expect(result.current.platform).toBe("ios");
+    expect(document.documentElement.dataset.maxPlatform).toBe("ios");
   });
 });

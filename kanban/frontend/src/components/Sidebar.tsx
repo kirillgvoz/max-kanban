@@ -1,4 +1,5 @@
-import { Plus } from "lucide-react";
+import { Building2, ChevronLeft } from "lucide-react";
+
 import type { AuthUser } from "../types";
 
 type View =
@@ -18,7 +19,7 @@ export function Sidebar({ currentView, onNavigate, user, connected }: SidebarPro
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <span className="sidebar-logo-icon">⬡</span>
+          <span className="brand-mark" aria-hidden="true">T</span>
           <span className="sidebar-logo-text">TaskFlow</span>
         </div>
       </div>
@@ -28,7 +29,7 @@ export function Sidebar({ currentView, onNavigate, user, connected }: SidebarPro
           className={`sidebar-item ${currentView.type === "orgs" ? "sidebar-item--active" : ""}`}
           onClick={() => onNavigate({ type: "orgs" })}
         >
-          <span className="sidebar-item-icon">🏢</span>
+          <Building2 size={18} className="sidebar-item-icon" aria-hidden="true" />
           Организации
         </button>
 
@@ -37,7 +38,7 @@ export function Sidebar({ currentView, onNavigate, user, connected }: SidebarPro
             className="sidebar-item sidebar-item--back"
             onClick={() => onNavigate({ type: "orgs" })}
           >
-            ← Все организации
+            <ChevronLeft size={16} aria-hidden="true" /> Все организации
           </button>
         )}
 
@@ -53,7 +54,7 @@ export function Sidebar({ currentView, onNavigate, user, connected }: SidebarPro
               className="sidebar-item sidebar-item--back"
               onClick={() => onNavigate({ type: "boards", orgId: currentView.orgId, orgName: currentView.orgName })}
             >
-              ← {currentView.orgName}
+              <ChevronLeft size={16} aria-hidden="true" /> {currentView.orgName}
             </button>
             <div className="sidebar-section-title">{currentView.boardName}</div>
           </div>

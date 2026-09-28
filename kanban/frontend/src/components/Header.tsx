@@ -35,7 +35,7 @@ export function Header({ view, onNavigate, isMobile, user, connected }: HeaderPr
 
         {isMobile && (
           <div className="header-logo">
-            <span className="header-logo-icon">⬡</span>
+            <span className="brand-mark brand-mark--sm" aria-hidden="true">T</span>
           </div>
         )}
 

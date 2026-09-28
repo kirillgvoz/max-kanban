@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Plus } from "lucide-react";
 import type { Board, Column, Task } from "../types";
 import { KanbanCardStatic } from "./KanbanCard";
 
@@ -59,7 +59,7 @@ export function MobileBoard({ tasks, allTasks, columns, onMoveTask, onSelectTask
       </div>
       <div className="mobile-task-list">
         {currentTasks.length === 0 ? (
-          <div className="mobile-empty"><div className="mobile-empty-icon">📋</div><div className="mobile-empty-text">Нет задач</div></div>
+          <div className="mobile-empty"><ClipboardList size={48} className="mobile-empty-icon" aria-hidden="true" /><div className="mobile-empty-text">Нет задач</div></div>
         ) : currentTasks.map((task) => (
           <SwipeableTaskCard
             key={task.id}

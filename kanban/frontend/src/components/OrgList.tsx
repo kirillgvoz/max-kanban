@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 import { useOrgs } from "../hooks/useOrgs";
 import type { AuthUser } from "../types";
 
@@ -55,7 +55,7 @@ export function OrgList({ user, onNavigate }: OrgListProps) {
             autoFocus
           />
           <div className="create-form-actions">
-            <button className="btn btn--ghost" onClick={() => setShowCreate(false)}>
+            <button className="btn btn--secondary" onClick={() => setShowCreate(false)}>
               Отмена
             </button>
             <button className="btn btn--primary" onClick={handleCreate}>
@@ -84,7 +84,7 @@ export function OrgList({ user, onNavigate }: OrgListProps) {
 
         {orgs.length === 0 && !showCreate && (
           <div className="empty-state">
-            <div className="empty-state-icon">🏢</div>
+            <Building2 size={48} className="empty-state-icon" aria-hidden="true" />
             <div className="empty-state-text">Нет организаций</div>
             <div className="empty-state-hint">Создайте первую организацию</div>
           </div>

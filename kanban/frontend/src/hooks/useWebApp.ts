@@ -6,6 +6,7 @@ type AuthState = "loading" | "authenticated" | "error";
 
 interface WebAppState {
   user: AuthUser | null;
+  platform: string | null;
   ready: boolean;
   state: AuthState;
   retry: () => void;
@@ -13,6 +14,7 @@ interface WebAppState {
 
 export function useWebApp(): WebAppState {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<AuthState>("loading");
   const [attempt, setAttempt] = useState(0);
@@ -25,6 +27,7 @@ export function useWebApp(): WebAppState {
     const initialize = async () => {
       setReady(false);
       setState("loading");
+      setPlatform(bridge?.platform || null);
       try {
         if (initData) {
           const response = await api.auth.validate(initData);
@@ -77,7 +80,18 @@ export function useWebApp(): WebAppState {
     };
   }, [attempt]);
 
+  useEffect(() => {
+    if (platform) {
+      document.documentElement.dataset.maxPlatform = platform;
+    } else {
+      delete document.documentElement.dataset.maxPlatform;
+    }
+    return () => {
+      delete document.documentElement.dataset.maxPlatform;
+    };
+  }, [platform]);
+
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
 
-  return { user, ready, state, retry };
+  return { user, platform, ready, state, retry };
 }

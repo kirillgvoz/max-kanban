@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { api, ApiError } from "../api/client";
 import type { AuthUser, BoardDetail, BoardChat, Column, Task } from "../types";
 
@@ -140,7 +140,7 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
               {canManage && (
                 <div className="modal-section-actions">
                   <button className="btn btn--primary" onClick={saveBoard} disabled={pending}>Сохранить</button>
-                  <button className="btn btn--ghost" onClick={archiveBoard} disabled={pending}>Архивировать</button>
+                  <button className="btn btn--secondary" onClick={archiveBoard} disabled={pending}>Архивировать</button>
                 </div>
               )}
             </>
@@ -157,8 +157,8 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
                     <input type="color" value={column.color} aria-label={`Цвет статуса ${column.id}`} disabled={!canManage} onChange={(event) => saveStatus(column, { color: event.target.value })} />
                     {canManage && (
                       <>
-                        <button className="btn btn--ghost btn--sm" onClick={() => moveStatus(index, -1)} disabled={pending || index === 0} aria-label={`Переместить ${column.name} влево`}>←</button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => moveStatus(index, 1)} disabled={pending || index === ordered.length - 1} aria-label={`Переместить ${column.name} вправо`}>→</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => moveStatus(index, -1)} disabled={pending || index === 0} aria-label={`Переместить ${column.name} влево`}><ChevronLeft size={16} aria-hidden="true" /></button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => moveStatus(index, 1)} disabled={pending || index === ordered.length - 1} aria-label={`Переместить ${column.name} вправо`}><ChevronRight size={16} aria-hidden="true" /></button>
                         <button className="btn btn--ghost btn--sm" onClick={() => removeStatus(column)} disabled={pending}>Удалить</button>
                       </>
                     )}

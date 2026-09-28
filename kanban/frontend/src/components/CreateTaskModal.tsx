@@ -76,7 +76,7 @@ export function CreateTaskModal({ columns, onSubmit, onClose }: CreateTaskModalP
           </div>
           <div className="form-group"><label className="form-label" htmlFor="new-task-deadline">Дедлайн</label><input id="new-task-deadline" type="date" className="input" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></div>
         </div>
-        <div className="modal-footer"><button className="btn btn--ghost" onClick={onClose}>Отмена</button><button className="btn btn--primary" onClick={() => void handleSubmit()} disabled={!title.trim() || pending}>{pending ? "Создание…" : "Создать"}</button></div>
+        <div className="modal-footer"><button className="btn btn--secondary" onClick={onClose}>Отмена</button><button className="btn btn--primary" onClick={() => void handleSubmit()} disabled={!title.trim() || pending}>{pending ? "Создание…" : "Создать"}</button></div>
       </div>
     </div>
   );
