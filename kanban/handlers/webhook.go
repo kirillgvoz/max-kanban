@@ -162,7 +162,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 		}
 		response := fmt.Sprintf("✅ Задача #%d создана: %s", taskID, title)
 		if link := h.Bot.BuildDeepLink(fmt.Sprintf("task_%d", taskID)); link != "" {
-			response += "\nОткрыть задачу: " + link
+			_, err = h.sendLinkCard(ctx, chatID, response, "📋 Открыть задачу", link)
+			return err
 		}
 		_, err = h.sendChatMessage(ctx, chatID, response)
 		return err
@@ -317,7 +318,8 @@ func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, u
 		return "Формат: /link board_<id>", 0, nil
 	}
 	var orgID int64
-	if err := tx.QueryRow(ctx, `SELECT org_id FROM boards WHERE id = $1 AND is_archived = FALSE`, boardID).Scan(&orgID); err != nil {
+	var boardName string
+	if err := tx.QueryRow(ctx, `SELECT org_id, name FROM boards WHERE id = $1 AND is_archived = FALSE`, boardID).Scan(&orgID, &boardName); err != nil {
 		if err == pgx.ErrNoRows {
 			return "Доска не найдена", 0, nil
 		}
@@ -336,10 +338,7 @@ func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, u
 	if _, err := tx.Exec(ctx, `INSERT INTO board_chats (board_id, chat_id, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, boardID, chatID, userID); err != nil {
 		return "", 0, err
 	}
-	response := fmt.Sprintf("Доска #%d привязана к этому чату", boardID)
-	if link := h.Bot.BuildDeepLink(fmt.Sprintf("board_%d", boardID)); link != "" {
-		response += "\nОткрыть доску: " + link
-	}
+	response := fmt.Sprintf("Доска «%s» привязана к этому чату", boardName)
 	return response, boardID, nil
 }
 
@@ -350,7 +349,8 @@ func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string,
 		return "Формат: /unlink board_<id>", "", nil
 	}
 	var orgID int64
-	if err := tx.QueryRow(ctx, `SELECT org_id FROM boards WHERE id = $1`, boardID).Scan(&orgID); err != nil {
+	var boardName string
+	if err := tx.QueryRow(ctx, `SELECT org_id, name FROM boards WHERE id = $1`, boardID).Scan(&orgID, &boardName); err != nil {
 		if err == pgx.ErrNoRows {
 			return "Доска не найдена", "", nil
 		}
@@ -373,7 +373,7 @@ func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string,
 	if _, err := tx.Exec(ctx, `DELETE FROM board_chats WHERE board_id = $1 AND chat_id = $2`, boardID, chatID); err != nil {
 		return "", "", err
 	}
-	return fmt.Sprintf("Доска #%d отвязана от этого чата", boardID), pinnedMID, nil
+	return fmt.Sprintf("Доска «%s» отвязана от этого чата", boardName), pinnedMID, nil
 }
 
 func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, title string, userID, chatID int64) (int64, string, error) {
@@ -486,8 +486,17 @@ func (h *WebhookHandler) chatStatus(ctx context.Context, tx pgx.Tx, text string,
 func (h *WebhookHandler) sendChatMessage(ctx context.Context, chatID int64, text string) (string, error) {
 	return h.Bot.SendChatMessageWithID(ctx, chatID, services.OutgoingMessage{
 		Text: text,
+	})
+}
+
+// sendLinkCard delivers a text with a single link button opening a URL
+// (for example a board deep link). Unlike open_app, link buttons need no
+// registered mini-app URL and always navigate somewhere.
+func (h *WebhookHandler) sendLinkCard(ctx context.Context, chatID int64, text, buttonText, url string) (string, error) {
+	return h.Bot.SendChatMessageWithID(ctx, chatID, services.OutgoingMessage{
+		Text: text,
 		Attachments: []any{services.InlineKeyboard([][]services.Button{
-			{services.OpenAppButton("📋 Открыть TaskFlow", h.Bot.FrontendURL)},
+			{services.LinkButton(buttonText, url)},
 		})},
 	})
 }
@@ -496,7 +505,14 @@ func (h *WebhookHandler) sendChatMessage(ctx context.Context, chatID int64, text
 // chat, remembering the pinned message. Pin failures never fail the link:
 // the bot simply may lack administrator rights.
 func (h *WebhookHandler) sendBoardCard(ctx context.Context, chatID, boardID int64, text string) error {
-	mid, err := h.sendChatMessage(ctx, chatID, text)
+	link := h.Bot.BuildDeepLink(fmt.Sprintf("board_%d", boardID))
+	var mid string
+	var err error
+	if link == "" {
+		mid, err = h.sendChatMessage(ctx, chatID, text)
+	} else {
+		mid, err = h.sendLinkCard(ctx, chatID, text, "📋 Открыть доску", link)
+	}
 	if err != nil {
 		return err
 	}

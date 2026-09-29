@@ -124,17 +124,12 @@ func InlineKeyboard(buttons [][]Button) KeyboardAttachment {
 }
 
 func (b *MaxBot) SendWelcome(ctx context.Context, chatID int64) error {
-	keyboard := InlineKeyboard([][]Button{
-		{OpenAppButton("📋 Открыть TaskFlow", b.FrontendURL)},
-		{LinkButton("📖 Помощь", "https://max.ru")},
-	})
 	text := "👋 Добро пожаловать в TaskFlow!\n\nУправляйте задачами прямо из мессенджера.\nСоздавайте организации, доски и работайте с командой."
 	if link := b.BuildAppLink(); link != "" {
 		text += "\n\nОткрыть приложение: " + link
 	}
 	return b.SendChatMessage(ctx, chatID, OutgoingMessage{
-		Text:        text,
-		Attachments: []any{keyboard},
+		Text: text,
 	})
 }
 

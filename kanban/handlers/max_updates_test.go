@@ -2,9 +2,15 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"kanban/services"
 )
 
 func decodeUpdate(t *testing.T, raw string) MaxUpdate {
@@ -92,6 +98,55 @@ func TestOptionalMaxIDAcceptsNegativeGroupChats(t *testing.T) {
 	zero := MaxID(0)
 	if _, ok := optionalMaxID(&zero); ok {
 		t.Fatal("zero chat id accepted")
+	}
+}
+
+func TestSendLinkCardNavigatesToBoard(t *testing.T) {
+	var request struct {
+		method string
+		path   string
+		query  string
+		body   map[string]any
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &request.body)
+		request.method = r.Method
+		request.path = r.URL.Path
+		request.query = r.URL.RawQuery
+		w.Write([]byte(`{"message":{"body":{"mid":"mid.3"}}}`))
+	}))
+	defer server.Close()
+
+	bot := services.NewMaxBot("token", "mybot", "https://example.com/app")
+	bot.SetBaseURL(server.URL)
+	bot.SetHTTPClient(server.Client())
+	handler := NewWebhookHandler(bot, "secret")
+
+	mid, err := handler.sendLinkCard(context.Background(), -77, "Доска «Маркетинг» привязана", "📋 Открыть доску", "https://max.ru/mybot?startapp=board_5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid != "mid.3" {
+		t.Fatalf("mid = %q", mid)
+	}
+	if request.method != "POST" || request.path != "/messages" || request.query != "chat_id=-77" {
+		t.Fatalf("request = %#v", request)
+	}
+	attachments, _ := request.body["attachments"].([]any)
+	if len(attachments) != 1 {
+		t.Fatalf("attachments = %#v", request.body["attachments"])
+	}
+	keyboard, _ := attachments[0].(map[string]any)
+	payload, _ := keyboard["payload"].(map[string]any)
+	rows, _ := payload["buttons"].([]any)
+	row, _ := rows[0].([]any)
+	button, _ := row[0].(map[string]any)
+	if button["type"] != "link" || button["url"] != "https://max.ru/mybot?startapp=board_5" || button["text"] != "📋 Открыть доску" {
+		t.Fatalf("button = %#v", row[0])
+	}
+	if _, present := button["web_app"]; present {
+		t.Fatalf("link button must not carry web_app, got %#v", row[0])
 	}
 }
 

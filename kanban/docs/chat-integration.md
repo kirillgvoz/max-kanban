@@ -91,19 +91,18 @@ consistent.
 
 ## Mini-app attachment
 
-Bot replies carry an `open_app` button whose `web_app` URL must exactly match
-the mini-app URL attached to the bot in the partner panel
-(business.max.ru → Чат-боты → ⋮ → Настройки → URL → Сохранить).
-MAX requires this field and looks the URL up as a registered link:
+Attach the mini-app URL in the partner panel
+(business.max.ru → Чат-боты → ⋮ → Настройки → URL → Сохранить) so that
+deep links (`https://max.ru/<bot>?startapp=…`) open the application.
+The attached URL should match `FRONTEND_URL`.
 
-- unattached or mismatched URL → `404 Link not found`, the whole message is
-  rejected;
-- missing `web_app` → `400 Field 'webApp' cannot be null`.
-
-To stay responsive, the bot retries once without the `open_app` button when
-MAX reports a link error, and logs that the mini-app URL needs attention.
-Text and `callback`/`link` buttons are always delivered; the “Open TaskFlow”
-button appears as soon as the attached URL matches `FRONTEND_URL` exactly.
+Bot messages deliberately avoid `open_app` buttons: an unattached or
+mismatched `web_app` URL makes MAX reject the whole message
+(`404 Link not found`, `400 Field 'webApp' cannot be null`). Instead the bot
+sends plain `link` buttons with board/task deep links — they need no
+registered URL and always navigate somewhere. A one-shot `open_app` fallback
+(retry without the button on link errors) is kept in the client as a safety
+net.
 
 Panel URL caveats: use `https`, at most 1024 characters; if the panel rejects
 a URL with a path, serve the app from a subdomain root instead.
