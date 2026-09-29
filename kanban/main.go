@@ -99,17 +99,24 @@ func main() {
 
 func setupMaxIntegration(ctx context.Context, cfg *config.Config, bot *services.MaxBot) {
 	if cfg.MaxBotToken == "" {
+		log.Printf("MAX integration skipped: MAX_BOT_TOKEN is not set")
 		return
 	}
 	setup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := bot.RegisterCommands(setup); err != nil {
 		log.Printf("Register MAX commands failed: %v", err)
+	} else {
+		log.Printf("MAX bot commands registered")
 	}
-	if cfg.MaxWebhookURL != "" {
-		if err := bot.EnsureSubscription(setup, cfg.MaxWebhookURL, cfg.MaxWebhookUpdateTypes, cfg.WebhookSecret); err != nil {
-			log.Printf("Ensure MAX subscription failed: %v", err)
-		}
+	if cfg.MaxWebhookURL == "" {
+		log.Printf("MAX webhook URL is not set, skipping subscription (set MAX_WEBHOOK_URL)")
+		return
+	}
+	if err := bot.EnsureSubscription(setup, cfg.MaxWebhookURL, cfg.MaxWebhookUpdateTypes, cfg.WebhookSecret); err != nil {
+		log.Printf("Ensure MAX subscription failed: %v", err)
+	} else {
+		log.Printf("MAX subscription ensured for %s (update types: %s)", cfg.MaxWebhookURL, strings.Join(cfg.MaxWebhookUpdateTypes, ","))
 	}
 }
 
