@@ -1,4 +1,4 @@
-import { ArrowLeft, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, CircleHelp, Wifi, WifiOff } from "lucide-react";
 import type { AuthUser } from "../types";
 
 type View =
@@ -9,12 +9,13 @@ type View =
 interface HeaderProps {
   view: View;
   onNavigate: (v: View) => void;
+  onOpenGuide: () => void;
   isMobile: boolean;
   user: AuthUser | null;
   connected: boolean;
 }
 
-export function Header({ view, onNavigate, isMobile, user, connected }: HeaderProps) {
+export function Header({ view, onNavigate, onOpenGuide, isMobile, user, connected }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-left">
@@ -47,6 +48,9 @@ export function Header({ view, onNavigate, isMobile, user, connected }: HeaderPr
       </div>
 
       <div className="header-right">
+        <button className="header-back" onClick={onOpenGuide} aria-label="Подключение чата">
+          <CircleHelp size={20} />
+        </button>
         <div className={`header-status ${connected ? "header-status--online" : ""}`}>
           {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
         </div>

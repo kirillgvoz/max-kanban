@@ -1,12 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useWebApp } from "./hooks/useWebApp";
 import { useIsMobile } from "./hooks/useIsMobile";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useStartParam } from "./hooks/useStartParam";
+import { api } from "./api/client";
 import { Sidebar } from "./components/Sidebar";
 import { OrgList } from "./components/OrgList";
 import { BoardList } from "./components/BoardList";
 import { Board } from "./components/Board";
 import { Header } from "./components/Header";
+import { SetupGuide } from "./components/SetupGuide";
 import type { AuthUser, Task, Board as BoardType, Column } from "./types";
 import "./styles/index.scss";
 
@@ -20,6 +23,7 @@ export default function App() {
   const isMobile = useIsMobile();
   const [view, setView] = useState<View>({ type: "orgs" });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const handleTaskUpdate = useCallback(() => {
     setRefreshKey((key) => key + 1);
@@ -30,6 +34,35 @@ export default function App() {
   const navigate = useCallback((v: View) => {
     setView(v);
   }, []);
+
+  const startTarget = useStartParam();
+  const startHandled = useRef(false);
+  useEffect(() => {
+    if (!ready || state !== "authenticated" || !user || !startTarget || startHandled.current) {
+      return;
+    }
+    startHandled.current = true;
+    const openTarget = async () => {
+      try {
+        const boardId =
+          startTarget.kind === "board"
+            ? startTarget.id
+            : (await api.tasks.get(startTarget.id)).board_id;
+        const board = await api.boards.get(boardId);
+        const org = await api.orgs.get(board.org_id);
+        navigate({
+          type: "board",
+          boardId: board.id,
+          orgId: org.id,
+          orgName: org.name,
+          boardName: board.name,
+        });
+      } catch {
+        // Unknown id or no access: stay on the default view.
+      }
+    };
+    void openTarget();
+  }, [ready, state, user, startTarget, navigate]);
 
   if (!ready) {
     return (
@@ -64,10 +97,18 @@ export default function App() {
         <Header
           view={view}
           onNavigate={navigate}
+          onOpenGuide={() => setGuideOpen(true)}
           isMobile={isMobile}
           user={user}
           connected={connected}
         />
+        {guideOpen && (
+          <SetupGuide
+            boardId={view.type === "board" ? view.boardId : null}
+            boardName={view.type === "board" ? view.boardName : undefined}
+            onClose={() => setGuideOpen(false)}
+          />
+        )}
 
         <div className="app-content">
           {view.type === "orgs" && (

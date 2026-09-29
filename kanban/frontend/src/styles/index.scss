@@ -1173,6 +1173,53 @@ body[data-max-platform="android"] {
   margin-top: 8px;
 }
 
+.guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guide-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.guide-step-num {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.guide-step-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guide-step-text {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
 .modal-title {
   font-size: 20px;
   font-weight: 600;

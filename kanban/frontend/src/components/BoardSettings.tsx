@@ -197,6 +197,7 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
           )}
           {tab === "chats" && (
             <>
+              <div className="muted-text">Сценарий: добавьте бота в чат → назначьте администратором → отправьте команду ниже в чат.</div>
               <div className="modal-props">
                 <div className="modal-prop"><span className="modal-prop-label">ID доски</span><span className="modal-prop-value">{board.id}</span></div>
                 <div className="modal-prop"><span className="modal-prop-label">Команда привязки</span><span className="modal-prop-value">{`/link board_${board.id}`}</span></div>
