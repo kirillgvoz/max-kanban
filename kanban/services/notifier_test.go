@@ -70,6 +70,43 @@ func prepareNotifierDatabase(t *testing.T) (context.Context, int64, int64, int64
 	return ctx, boardID, taskID, orgID
 }
 
+func TestNotificationFormats(t *testing.T) {
+	full := taskCard{Board: "Маркетинг", Status: "Новое", Deadline: "30.09"}
+	if got := formatTaskCreated(12, "Позвонить клиенту", full); got != "📋 #12 Позвонить клиенту\nМаркетинг · Новое · до 30.09" {
+		t.Fatalf("created = %q", got)
+	}
+	if got := formatTaskStatus(12, "Позвонить клиенту", "Новое", "В работе", taskCard{Board: "Маркетинг"}, "Кирилл"); got != "🔄 #12 Позвонить клиенту: Новое → В работе\nМаркетинг · Кирилл" {
+		t.Fatalf("status = %q", got)
+	}
+	if got := formatTaskStatus(12, "Позвонить клиенту", "В работе", "В работе", taskCard{Board: "Маркетинг"}, ""); got != "🔄 #12 Позвонить клиенту: В работе\nМаркетинг" {
+		t.Fatalf("same status = %q", got)
+	}
+	if got := formatTaskAssigned(12, "Позвонить клиенту", full); got != "👤 Вам назначена задача #12: Позвонить клиенту\nМаркетинг · Новое · до 30.09" {
+		t.Fatalf("assigned = %q", got)
+	}
+	if got := formatTaskDeadline(12, "Позвонить клиенту", taskCard{Board: "Маркетинг", Status: "В работе"}); got != "⏰ Дедлайн сегодня: #12 Позвонить клиенту\nМаркетинг · В работе" {
+		t.Fatalf("deadline = %q", got)
+	}
+	if got := formatTaskCreated(1, "T", taskCard{}); got != "📋 #1 T" {
+		t.Fatalf("empty card = %q", got)
+	}
+	if got := formatShortDate("2026-09-30"); got != "30.09" {
+		t.Fatalf("date = %q", got)
+	}
+	if got := formatShortDate("nope"); got != "" {
+		t.Fatalf("bad date = %q", got)
+	}
+	buttons := taskActionButtons(7)
+	keyboard, ok := buttons[0].(KeyboardAttachment)
+	if !ok || len(keyboard.Payload.Buttons) != 1 || len(keyboard.Payload.Buttons[0]) != 2 {
+		t.Fatalf("buttons = %#v", buttons)
+	}
+	first, second := keyboard.Payload.Buttons[0][0], keyboard.Payload.Buttons[0][1]
+	if first.Type != "callback" || first.Payload != "take:7" || second.Type != "callback" || second.Payload != "done:7" {
+		t.Fatalf("buttons = %#v", keyboard.Payload.Buttons[0])
+	}
+}
+
 func TestNotifierEnqueueIsIdempotent(t *testing.T) {
 	ctx, _, _, _ := prepareNotifierDatabase(t)
 	notifier := NewNotifier(db.Pool, &recordingSender{})
@@ -92,7 +129,7 @@ func TestNotifierProcessesChatMessages(t *testing.T) {
 	if err := notifier.EnqueueTaskCreated(ctx, boardID, taskID, "Задача"); err != nil {
 		t.Fatal(err)
 	}
-	if err := notifier.EnqueueTaskStatus(ctx, boardID, taskID, 1, "Задача", "В работе"); err != nil {
+	if err := notifier.EnqueueTaskStatus(ctx, boardID, taskID, 1, "Задача", "В работе", 0, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := notifier.EnqueueTaskAssigned(ctx, taskID, 1, "Задача"); err != nil {

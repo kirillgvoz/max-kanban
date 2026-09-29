@@ -106,9 +106,9 @@ export function SetupGuide({ boardId, boardName, onClose }: SetupGuideProps) {
                   <button className="btn btn--secondary btn--sm" onClick={() => copy(linkCommand, "link")}>{copied === "link" ? "Скопировано" : "Скопировать"}</button>
                 </div>
                 {boardId ? (
-                  <div className="guide-step-text">Привязанных чатов: {chats.length}.</div>
+                  <div className="guide-step-text">Привязанных чатов: {chats.length}. Бот закрепит сообщение доски в чате.</div>
                 ) : (
-                  <div className="guide-step-text">ID доски — в настройках доски, вкладка «Чаты».</div>
+                  <div className="guide-step-text">ID доски — в настройках доски, вкладка «Чаты». Бот закрепит сообщение доски в чате.</div>
                 )}
               </div>
             </li>

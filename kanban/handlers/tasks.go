@@ -339,7 +339,7 @@ func (h *TaskHandler) Move(c *gin.Context) {
 	var status string
 	_ = db.Pool.QueryRow(ctx, `SELECT name FROM columns WHERE id = $1`, task.ColumnID).Scan(&status)
 	orgID, _ := boardOrganization(ctx, c.Param("id"), false)
-	if err := services.NotifyTaskStatus(ctx, task.BoardID, task.ID, task.ColumnID, task.Title, status); err != nil {
+	if err := services.NotifyTaskStatus(ctx, task.BoardID, task.ID, task.ColumnID, task.Title, status, sourceColumnID, getUserID(c)); err != nil {
 		log.Printf("queue status notification: %v", err)
 	}
 	ws.BroadcastToOrgDirect(orgID, "task:moved", task)

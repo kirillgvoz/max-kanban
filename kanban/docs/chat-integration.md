@@ -239,4 +239,5 @@ orgs.get`). Неизвестный id или отсутствие доступа
 - Chat linking uses numeric MAX `chat_id` values; there is no native MAX chat picker yet.
 - `/new` supports one linked board per chat.
 - `/tasks` summarizes linked boards and upcoming deadlines rather than listing every assigned task.
-- Production notifications currently emphasize text plus an “Open TaskFlow” button rather than attaching `take` and `done` buttons to every notification.
+- Chat notifications carry a compact two-line card (board, status, deadline, actor) with `take` and `done` buttons; direct user notifications stay text-only because dialog callbacks cannot resolve a chat.
+- `/link` pins the board card message in the chat (bot must be admin); `/unlink` removes the pin only when it is still the bot’s own message. The pin id is stored in `board_chats.pinned_message_id`.

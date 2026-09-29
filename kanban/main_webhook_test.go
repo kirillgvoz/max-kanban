@@ -20,9 +20,10 @@ import (
 )
 
 type fakeMaxCall struct {
-	path  string
-	query string
-	body  map[string]any
+	method string
+	path   string
+	query  string
+	body   map[string]any
 }
 
 type fakeMaxServer struct {
@@ -33,7 +34,15 @@ func (f *fakeMaxServer) handler(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	var decoded map[string]any
 	_ = json.Unmarshal(body, &decoded)
-	f.calls = append(f.calls, fakeMaxCall{path: r.URL.Path, query: r.URL.RawQuery, body: decoded})
+	f.calls = append(f.calls, fakeMaxCall{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, body: decoded})
+	if r.URL.Path == "/messages" {
+		w.Write([]byte(`{"message":{"body":{"mid":"mid.test"}}}`))
+		return
+	}
+	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/pin") {
+		w.Write([]byte(`{"body":{"mid":"mid.test"}}`))
+		return
+	}
 	w.Write([]byte(`{"success":true}`))
 }
 
@@ -250,6 +259,22 @@ func TestWebhookChatCommands(t *testing.T) {
 	if count := countRows(t, ctx, `SELECT COUNT(*) FROM board_chats WHERE board_id = $1 AND chat_id = 77`, boardID); count != 1 {
 		t.Fatalf("board chats = %d, want 1", count)
 	}
+	var pinned string
+	if err := db.Pool.QueryRow(ctx, `SELECT pinned_message_id FROM board_chats WHERE board_id = $1 AND chat_id = 77`, boardID).Scan(&pinned); err != nil {
+		t.Fatal(err)
+	}
+	if pinned != "mid.test" {
+		t.Fatalf("pinned message = %q, want mid.test", pinned)
+	}
+	pinnedCall := false
+	for _, call := range maxCalls.calls {
+		if strings.HasSuffix(call.path, "/pin") && call.body["message_id"] == "mid.test" {
+			pinnedCall = true
+		}
+	}
+	if !pinnedCall {
+		t.Fatalf("no pin call for mid.test in %#v", maxCalls.calls)
+	}
 	linkReply := false
 	for _, call := range maxCalls.calls {
 		if call.path != "/messages" || !strings.Contains(call.query, "chat_id=77") {
@@ -277,5 +302,30 @@ func TestWebhookChatCommands(t *testing.T) {
 	}
 	if count := countRows(t, ctx, `SELECT COUNT(*) FROM tasks WHERE board_id = $1 AND title = 'Позвонить клиенту'`, boardID); count != 1 {
 		t.Fatalf("chat tasks = %d, want 1", count)
+	}
+
+	unlink := map[string]any{
+		"update_type": "message_created",
+		"timestamp":   1780000000004,
+		"message": map[string]any{
+			"body":      map[string]any{"text": fmt.Sprintf("/unlink board_%d", boardID)},
+			"sender":    map[string]any{"user_id": 1},
+			"recipient": map[string]any{"chat_id": 77},
+		},
+	}
+	if status := postWebhook(t, server, unlink); status != 200 {
+		t.Fatalf("unlink status = %d", status)
+	}
+	if count := countRows(t, ctx, `SELECT COUNT(*) FROM board_chats WHERE board_id = $1 AND chat_id = 77`, boardID); count != 0 {
+		t.Fatalf("board chats = %d, want 0", count)
+	}
+	unpinnedCall := false
+	for _, call := range maxCalls.calls {
+		if call.method == http.MethodDelete && strings.HasSuffix(call.path, "/chats/77/pin") {
+			unpinnedCall = true
+		}
+	}
+	if !unpinnedCall {
+		t.Fatalf("no unpin call in %#v", maxCalls.calls)
 	}
 }

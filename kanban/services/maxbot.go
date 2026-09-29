@@ -152,6 +152,106 @@ func (b *MaxBot) SendChatMessage(ctx context.Context, chatID int64, message Outg
 	return b.sendMessage(ctx, url.Values{"chat_id": {strconv.FormatInt(chatID, 10)}}, message)
 }
 
+// SendChatMessageWithID sends a message and returns the created message id
+// (Message.body.mid), or an empty string when MAX does not report one.
+func (b *MaxBot) SendChatMessageWithID(ctx context.Context, chatID int64, message OutgoingMessage) (string, error) {
+	body, err := b.postMessage(ctx, url.Values{"chat_id": {strconv.FormatInt(chatID, 10)}}, message)
+	if err != nil {
+		return "", err
+	}
+	return parseMessageID(body), nil
+}
+
+// PinChatMessage pins a message in a group chat or channel.
+// The bot must be an administrator; pinning never notifies beyond the pin.
+func (b *MaxBot) PinChatMessage(ctx context.Context, chatID int64, messageID string) error {
+	body, err := b.do(ctx, http.MethodPut, "/chats/"+strconv.FormatInt(chatID, 10)+"/pin", nil, map[string]any{
+		"message_id": messageID,
+		"notify":     false,
+	})
+	if err != nil {
+		return err
+	}
+	return checkPinSuccess(body)
+}
+
+// UnpinChatMessage removes the pinned message of a group chat or channel.
+func (b *MaxBot) UnpinChatMessage(ctx context.Context, chatID int64) error {
+	body, err := b.do(ctx, http.MethodDelete, "/chats/"+strconv.FormatInt(chatID, 10)+"/pin", nil, nil)
+	if err != nil {
+		return err
+	}
+	return checkPinSuccess(body)
+}
+
+// PinnedMessageID returns the currently pinned message id (Message.body.mid),
+// or an empty string when nothing is pinned or the shape is unknown.
+func (b *MaxBot) PinnedMessageID(ctx context.Context, chatID int64) (string, error) {
+	body, err := b.do(ctx, http.MethodGet, "/chats/"+strconv.FormatInt(chatID, 10)+"/pin", nil, nil)
+	if err != nil {
+		return "", err
+	}
+	return parseMessageID(body), nil
+}
+
+func checkPinSuccess(body []byte) error {
+	var response struct {
+		Success *bool   `json:"success"`
+		Message *string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return err
+	}
+	if response.Success != nil && !*response.Success {
+		message := ""
+		if response.Message != nil {
+			message = *response.Message
+		}
+		return fmt.Errorf("pin request failed: %s", message)
+	}
+	return nil
+}
+
+// parseMessageID extracts Message.body.mid from a MAX response,
+// tolerating wrapped and bare shapes.
+func parseMessageID(body []byte) string {
+	var response struct {
+		Message *struct {
+			Body *struct {
+				Mid string `json:"mid"`
+			} `json:"body"`
+			Mid       string `json:"mid"`
+			MessageID string `json:"message_id"`
+		} `json:"message"`
+		Body *struct {
+			Mid string `json:"mid"`
+		} `json:"body"`
+		Mid       string `json:"mid"`
+		MessageID string `json:"message_id"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return ""
+	}
+	if response.Message != nil {
+		if response.Message.Body != nil && response.Message.Body.Mid != "" {
+			return response.Message.Body.Mid
+		}
+		if response.Message.Mid != "" {
+			return response.Message.Mid
+		}
+		if response.Message.MessageID != "" {
+			return response.Message.MessageID
+		}
+	}
+	if response.Body != nil && response.Body.Mid != "" {
+		return response.Body.Mid
+	}
+	if response.Mid != "" {
+		return response.Mid
+	}
+	return response.MessageID
+}
+
 func (b *MaxBot) SendDirectMessage(ctx context.Context, userID int64, message OutgoingMessage) error {
 	return b.sendMessage(ctx, url.Values{"user_id": {strconv.FormatInt(userID, 10)}}, message)
 }
@@ -267,9 +367,14 @@ func (b *MaxBot) BuildDeepLink(payload string) string {
 }
 
 func (b *MaxBot) sendMessage(ctx context.Context, query url.Values, message OutgoingMessage) error {
-	_, err := b.do(ctx, http.MethodPost, "/messages", query, message)
+	_, err := b.postMessage(ctx, query, message)
+	return err
+}
+
+func (b *MaxBot) postMessage(ctx context.Context, query url.Values, message OutgoingMessage) ([]byte, error) {
+	body, err := b.do(ctx, http.MethodPost, "/messages", query, message)
 	if err == nil {
-		return nil
+		return body, nil
 	}
 	// An open_app button references the mini-app URL attached to the bot in
 	// the partner panel. If it is missing or does not match exactly, MAX
@@ -277,11 +382,10 @@ func (b *MaxBot) sendMessage(ctx context.Context, query url.Values, message Outg
 	// retry once without the mini-app button instead of staying silent.
 	stripped, ok := stripOpenAppButtons(message)
 	if !ok || !isMiniAppLinkError(err) {
-		return err
+		return nil, err
 	}
 	log.Printf("max bot: open_app button rejected (%v), retrying without the mini-app button", err)
-	_, retryErr := b.do(ctx, http.MethodPost, "/messages", query, stripped)
-	return retryErr
+	return b.do(ctx, http.MethodPost, "/messages", query, stripped)
 }
 
 // isMiniAppLinkError reports MAX rejections caused by an unattached or

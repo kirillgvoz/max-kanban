@@ -17,7 +17,7 @@ describe("SetupGuide", () => {
     render(<SetupGuide boardId={null} onClose={vi.fn()} />);
     expect(screen.getByText("Назначьте бота администратором")).toBeTruthy();
     expect(screen.getByText("/link board_<id>")).toBeTruthy();
-    expect(screen.getByText("ID доски — в настройках доски, вкладка «Чаты».")).toBeTruthy();
+    expect(screen.getByText("ID доски — в настройках доски, вкладка «Чаты». Бот закрепит сообщение доски в чате.")).toBeTruthy();
   });
 
   it("копирует команду привязки доски и показывает статус", async () => {
@@ -27,7 +27,7 @@ describe("SetupGuide", () => {
     expect(screen.getByText(/Привяжите доску «Доска»/)).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "Скопировать" })[1]);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("/link board_5"));
-    await waitFor(() => expect(screen.getByText("Привязанных чатов: 0.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText((_, element) => element?.textContent === "Привязанных чатов: 0. Бот закрепит сообщение доски в чате.")).toBeTruthy());
     await waitFor(() => expect(screen.getByText("Скопировано")).toBeTruthy());
   });
 

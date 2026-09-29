@@ -108,23 +108,31 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 	command, args := parseChatCommand(text)
 	switch command {
 	case "/link":
-		response, err := h.linkBoard(ctx, tx, args, userID, chatID)
+		response, boardID, err := h.linkBoard(ctx, tx, args, userID, chatID)
 		if err != nil {
 			return err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
-		return h.sendChatMessage(ctx, chatID, response)
+		if boardID <= 0 {
+			_, err := h.sendChatMessage(ctx, chatID, response)
+			return err
+		}
+		return h.sendBoardCard(ctx, chatID, boardID, response)
 	case "/unlink":
-		response, err := h.unlinkBoard(ctx, tx, args, userID, chatID)
+		response, pinnedMID, err := h.unlinkBoard(ctx, tx, args, userID, chatID)
 		if err != nil {
 			return err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
-		return h.sendChatMessage(ctx, chatID, response)
+		if _, err := h.sendChatMessage(ctx, chatID, response); err != nil {
+			return err
+		}
+		h.unpinBoardCard(ctx, chatID, pinnedMID)
+		return nil
 	case "/new":
 		taskID, title, err := h.createTaskFromChat(ctx, tx, args, userID, chatID)
 		if err != nil {
@@ -134,7 +142,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 			if err := tx.Commit(ctx); err != nil {
 				return err
 			}
-			return h.sendChatMessage(ctx, chatID, title)
+			_, err := h.sendChatMessage(ctx, chatID, title)
+			return err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return err
@@ -155,7 +164,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 		if link := h.Bot.BuildDeepLink(fmt.Sprintf("task_%d", taskID)); link != "" {
 			response += "\nОткрыть задачу: " + link
 		}
-		return h.sendChatMessage(ctx, chatID, response)
+		_, err = h.sendChatMessage(ctx, chatID, response)
+		return err
 	case "/start", "/tasks":
 		response, err := h.chatStatus(ctx, tx, command, chatID)
 		if err != nil {
@@ -164,12 +174,14 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
-		return h.sendChatMessage(ctx, chatID, response)
+		_, err = h.sendChatMessage(ctx, chatID, response)
+		return err
 	default:
 		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
-		return h.sendChatMessage(ctx, chatID, "Используйте /link board_<id>, /tasks или /new <задача>")
+		_, err := h.sendChatMessage(ctx, chatID, "Используйте /link board_<id>, /tasks или /new <задача>")
+		return err
 	}
 }
 
@@ -264,7 +276,7 @@ func (h *WebhookHandler) handleCallback(ctx context.Context, update MaxUpdate) e
 	}
 	updated.Assignees, _ = loadAssignees(ctx, taskID)
 	ws.BroadcastToOrgDirect(orgID, "task:moved", updated)
-	if err := services.NotifyTaskStatus(ctx, boardID, taskID, targetColumnID, title, targetName); err != nil {
+	if err := services.NotifyTaskStatus(ctx, boardID, taskID, targetColumnID, title, targetName, sourceColumnID, userID); err != nil {
 		log.Printf("queue callback status notification: %v", err)
 	}
 	return h.Bot.AnswerCallback(ctx, update.Callback.CallbackID, &services.OutgoingMessage{
@@ -298,66 +310,70 @@ func (h *WebhookHandler) handleBotStarted(ctx context.Context, update MaxUpdate)
 	return h.Bot.SendWelcome(ctx, chatID)
 }
 
-func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, error) {
+func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, int64, error) {
 	ref, _, _ := strings.Cut(arg, " ")
 	boardID, err := positiveID(strings.TrimPrefix(ref, "board_"))
 	if err != nil {
-		return "Формат: /link board_<id>", nil
+		return "Формат: /link board_<id>", 0, nil
 	}
 	var orgID int64
 	if err := tx.QueryRow(ctx, `SELECT org_id FROM boards WHERE id = $1 AND is_archived = FALSE`, boardID).Scan(&orgID); err != nil {
 		if err == pgx.ErrNoRows {
-			return "Доска не найдена", nil
+			return "Доска не найдена", 0, nil
 		}
-		return "", err
+		return "", 0, err
 	}
 	var role string
 	if err := tx.QueryRow(ctx, `SELECT role FROM org_members WHERE org_id = $1 AND user_id = $2`, orgID, userID).Scan(&role); err != nil {
 		if err == pgx.ErrNoRows {
-			return "Только участник организации может привязать доску", nil
+			return "Только участник организации может привязать доску", 0, nil
 		}
-		return "", err
+		return "", 0, err
 	}
 	if role != "owner" && role != "admin" {
-		return "Привязать доску может только owner или admin", nil
+		return "Привязать доску может только owner или admin", 0, nil
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO board_chats (board_id, chat_id, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, boardID, chatID, userID); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	response := fmt.Sprintf("Доска #%d привязана к этому чату", boardID)
 	if link := h.Bot.BuildDeepLink(fmt.Sprintf("board_%d", boardID)); link != "" {
 		response += "\nОткрыть доску: " + link
 	}
-	return response, nil
+	return response, boardID, nil
 }
 
-func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, error) {
+func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, string, error) {
 	ref, _, _ := strings.Cut(arg, " ")
 	boardID, err := positiveID(strings.TrimPrefix(ref, "board_"))
 	if err != nil {
-		return "Формат: /unlink board_<id>", nil
+		return "Формат: /unlink board_<id>", "", nil
 	}
 	var orgID int64
 	if err := tx.QueryRow(ctx, `SELECT org_id FROM boards WHERE id = $1`, boardID).Scan(&orgID); err != nil {
 		if err == pgx.ErrNoRows {
-			return "Доска не найдена", nil
+			return "Доска не найдена", "", nil
 		}
-		return "", err
+		return "", "", err
 	}
 	var role string
 	if err := tx.QueryRow(ctx, `SELECT role FROM org_members WHERE org_id = $1 AND user_id = $2`, orgID, userID).Scan(&role); err != nil {
 		if err == pgx.ErrNoRows {
-			return "Только участник организации может отвязать доску", nil
+			return "Только участник организации может отвязать доску", "", nil
 		}
-		return "", err
+		return "", "", err
 	}
 	if role != "owner" && role != "admin" {
-		return "Отвязать доску может только owner или admin", nil
+		return "Отвязать доску может только owner или admin", "", nil
+	}
+	var pinnedMID string
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(pinned_message_id, '') FROM board_chats WHERE board_id = $1 AND chat_id = $2`, boardID, chatID).Scan(&pinnedMID); err != nil && err != pgx.ErrNoRows {
+		return "", "", err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM board_chats WHERE board_id = $1 AND chat_id = $2`, boardID, chatID); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return fmt.Sprintf("Доска #%d отвязана от этого чата", boardID), nil
+	return fmt.Sprintf("Доска #%d отвязана от этого чата", boardID), pinnedMID, nil
 }
 
 func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, title string, userID, chatID int64) (int64, string, error) {
@@ -467,13 +483,54 @@ func (h *WebhookHandler) chatStatus(ctx context.Context, tx pgx.Tx, text string,
 	return "Доски этого чата:\n" + strings.Join(lines, "\n"), nil
 }
 
-func (h *WebhookHandler) sendChatMessage(ctx context.Context, chatID int64, text string) error {
-	return h.Bot.SendChatMessage(ctx, chatID, services.OutgoingMessage{
+func (h *WebhookHandler) sendChatMessage(ctx context.Context, chatID int64, text string) (string, error) {
+	return h.Bot.SendChatMessageWithID(ctx, chatID, services.OutgoingMessage{
 		Text: text,
 		Attachments: []any{services.InlineKeyboard([][]services.Button{
 			{services.OpenAppButton("📋 Открыть TaskFlow", h.Bot.FrontendURL)},
 		})},
 	})
+}
+
+// sendBoardCard delivers the board link confirmation and pins it in the
+// chat, remembering the pinned message. Pin failures never fail the link:
+// the bot simply may lack administrator rights.
+func (h *WebhookHandler) sendBoardCard(ctx context.Context, chatID, boardID int64, text string) error {
+	mid, err := h.sendChatMessage(ctx, chatID, text)
+	if err != nil {
+		return err
+	}
+	if mid == "" {
+		return nil
+	}
+	if err := h.Bot.PinChatMessage(ctx, chatID, mid); err != nil {
+		log.Printf("webhook pin board %d in chat %d failed: %v", boardID, chatID, err)
+		return nil
+	}
+	if _, err := db.Pool.Exec(ctx, `UPDATE board_chats SET pinned_message_id = $1 WHERE board_id = $2 AND chat_id = $3`, mid, boardID, chatID); err != nil {
+		log.Printf("webhook store pin for board %d failed: %v", boardID, err)
+	}
+	return nil
+}
+
+// unpinBoardCard removes the board pin recorded at link time, but never
+// touches a pin the bot did not set.
+func (h *WebhookHandler) unpinBoardCard(ctx context.Context, chatID int64, pinnedMID string) {
+	if pinnedMID == "" {
+		return
+	}
+	current, err := h.Bot.PinnedMessageID(ctx, chatID)
+	if err != nil {
+		log.Printf("webhook read pin in chat %d failed: %v", chatID, err)
+		return
+	}
+	if current == "" || current != pinnedMID {
+		log.Printf("webhook pin in chat %d overridden or missing, leaving it", chatID)
+		return
+	}
+	if err := h.Bot.UnpinChatMessage(ctx, chatID); err != nil {
+		log.Printf("webhook unpin in chat %d failed: %v", chatID, err)
+	}
 }
 
 func (h *WebhookHandler) answerAndFail(ctx context.Context, tx pgx.Tx, callbackID string, chatID int64, text string) error {

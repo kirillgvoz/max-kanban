@@ -1,0 +1,1 @@
+ALTER TABLE board_chats ADD COLUMN IF NOT EXISTS pinned_message_id TEXT NOT NULL DEFAULT '';

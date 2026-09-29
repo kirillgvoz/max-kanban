@@ -191,6 +191,107 @@ func TestBuildDeepLink(t *testing.T) {
 	}
 }
 
+func TestSendChatMessageWithIDReturnsMid(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/messages" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		w.Write([]byte(`{"message":{"body":{"mid":"mid.1"}}}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	mid, err := bot.SendChatMessageWithID(context.Background(), -77, OutgoingMessage{Text: "Привет"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid != "mid.1" {
+		t.Fatalf("mid = %q", mid)
+	}
+}
+
+func TestSendChatMessageWithIDFallsBackWithoutOpenApp(t *testing.T) {
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests == 1 {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"code":"link.not.found","message":"Link not found"}`))
+			return
+		}
+		w.Write([]byte(`{"message":{"body":{"mid":"mid.2"}}}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	mid, err := bot.SendChatMessageWithID(context.Background(), 77, OutgoingMessage{
+		Text:        "Привет",
+		Attachments: []any{InlineKeyboard([][]Button{{OpenAppButton("Открыть", "https://example.com/app")}})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid != "mid.2" || requests != 2 {
+		t.Fatalf("mid = %q requests = %d", mid, requests)
+	}
+}
+
+func TestPinChatMessage(t *testing.T) {
+	var requests []recordedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded map[string]any
+		_ = json.Unmarshal(body, &decoded)
+		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, body: decoded})
+		if r.Method == http.MethodGet {
+			w.Write([]byte(`{"body":{"mid":"mid.9"}}`))
+			return
+		}
+		w.Write([]byte(`{"success":true}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	if err := bot.PinChatMessage(context.Background(), -77, "mid.1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 1 || requests[0].method != "PUT" || requests[0].path != "/chats/-77/pin" || requests[0].body["message_id"] != "mid.1" {
+		t.Fatalf("requests = %#v", requests)
+	}
+	if mid, err := bot.PinnedMessageID(context.Background(), -77); err != nil || mid != "mid.9" {
+		t.Fatalf("pinned = %q, %v", mid, err)
+	}
+	if err := bot.UnpinChatMessage(context.Background(), -77); err != nil {
+		t.Fatal(err)
+	}
+	if requests[2].method != "DELETE" || requests[2].path != "/chats/-77/pin" {
+		t.Fatalf("requests = %#v", requests)
+	}
+}
+
+func TestPinChatMessageReportsFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":false,"message":"no rights"}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	if err := bot.PinChatMessage(context.Background(), -77, "mid.1"); err == nil {
+		t.Fatal("expected pin error")
+	}
+	if err := bot.UnpinChatMessage(context.Background(), -77); err == nil {
+		t.Fatal("expected unpin error")
+	}
+}
+
 func TestAnswerCallback(t *testing.T) {
 	var query string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
