@@ -1630,6 +1630,12 @@ body {
   font-size: 14px;
 }
 
+.auth-error-code {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+}
+
 .content-actions {
   display: flex;
   gap: 8px;

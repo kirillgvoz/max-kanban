@@ -19,7 +19,7 @@ type View =
   | { type: "board"; boardId: number; orgId: number; orgName: string; boardName: string };
 
 export default function App() {
-  const { user, ready, state, retry } = useWebApp();
+  const { user, ready, state, reason, retry } = useWebApp();
   const isMobile = useIsMobile();
   const [view, setView] = useState<View>({ type: "orgs" });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -77,6 +77,7 @@ export default function App() {
       <div className="auth-error">
         <div className="auth-error-title">Нужен вход через MAX</div>
         <div className="auth-error-text">Откройте Max Канбан из бота в мессенджере.</div>
+        {reason && <div className="auth-error-code">код: {reason}</div>}
         <button className="btn btn--primary" onClick={retry}>Повторить</button>
       </div>
     );
