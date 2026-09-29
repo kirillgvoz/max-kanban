@@ -59,7 +59,7 @@ export function useWebApp(): WebAppState {
           return;
         }
 
-        throw new Error("Open TaskFlow from MAX to continue");
+        throw new Error("Open Max Kanban from MAX to continue");
       } catch {
         if (!cancelled) {
           setUser(null);

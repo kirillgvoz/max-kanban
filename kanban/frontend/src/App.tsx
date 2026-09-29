@@ -76,7 +76,7 @@ export default function App() {
     return (
       <div className="auth-error">
         <div className="auth-error-title">Нужен вход через MAX</div>
-        <div className="auth-error-text">Откройте TaskFlow из бота в мессенджере.</div>
+        <div className="auth-error-text">Откройте Max Канбан из бота в мессенджере.</div>
         <button className="btn btn--primary" onClick={retry}>Повторить</button>
       </div>
     );

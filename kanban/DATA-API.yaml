@@ -1,5 +1,5 @@
 config_version: "1"
-solution: TaskFlow Kanban
+solution: Max Канбан
 base_url: https://kirillgvoz.ru/max-kanban
 authentication:
   mechanism: MAX WebApp initData signature

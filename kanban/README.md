@@ -1,6 +1,6 @@
-# TaskFlow Kanban
+# Max Канбан
 
-TaskFlow is a MAX messenger mini-app for organizations, boards, customizable task statuses, tasks, checklists, comments, assignments, chat notifications, and deadline reminders.
+Max Канбан is a MAX messenger mini-app for organizations, boards, customizable task statuses, tasks, checklists, comments, assignments, chat notifications, and deadline reminders.
 
 ## Repository layout
 

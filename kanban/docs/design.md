@@ -1,6 +1,6 @@
 # MAX visual language
 
-TaskFlow uses the production MAX messenger and MAX UI tokens as its visual source of truth.
+Max Канбан uses the production MAX messenger and MAX UI tokens as its visual source of truth.
 Custom class names are preserved, but colors, typography, spacing, radii, controls,
 and platform behavior follow MAX.
 

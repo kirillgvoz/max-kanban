@@ -124,7 +124,7 @@ func InlineKeyboard(buttons [][]Button) KeyboardAttachment {
 }
 
 func (b *MaxBot) SendWelcome(ctx context.Context, chatID int64) error {
-	text := "👋 Добро пожаловать в TaskFlow!\n\nУправляйте задачами прямо из мессенджера.\nСоздавайте организации, доски и работайте с командой."
+	text := "👋 Добро пожаловать в Max Канбан!\n\nУправляйте задачами прямо из мессенджера.\nСоздавайте организации, доски и работайте с командой."
 	if link := b.BuildAppLink(); link != "" {
 		text += "\n\nОткрыть приложение: " + link
 	}
@@ -258,7 +258,7 @@ func (b *MaxBot) AnswerCallback(ctx context.Context, callbackID string, message 
 
 func (b *MaxBot) RegisterCommands(ctx context.Context) error {
 	commands := []BotCommand{
-		{Name: "start", Description: "Запустить TaskFlow"},
+		{Name: "start", Description: "Запустить Max Канбан"},
 		{Name: "tasks", Description: "Мои задачи"},
 		{Name: "new", Description: "Новая задача"},
 		{Name: "link", Description: "Привязать доску к чату"},

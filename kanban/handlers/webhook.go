@@ -446,7 +446,7 @@ func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, titl
 
 func (h *WebhookHandler) chatStatus(ctx context.Context, tx pgx.Tx, text string, chatID int64) (string, error) {
 	if text == "/start" {
-		response := "👋 Добро пожаловать в TaskFlow! Используйте /link board_<id> в рабочем чате, чтобы подключить доску."
+		response := "👋 Добро пожаловать в Max Канбан! Используйте /link board_<id> в рабочем чате, чтобы подключить доску."
 		if link := h.Bot.BuildAppLink(); link != "" {
 			response += "\n\nОткрыть приложение: " + link
 		}

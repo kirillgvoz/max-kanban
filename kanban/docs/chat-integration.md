@@ -1,6 +1,6 @@
 # Chat integration
 
-TaskFlow connects a MAX working chat to a Kanban board through the `board_chats`
+Max Канбан connects a MAX working chat to a Kanban board through the `board_chats`
 relationship. The linked chat is used both as a command context and as a
 notification destination.
 
@@ -16,7 +16,7 @@ notification destination.
    - `bot_started`
    - `bot_added`
 4. On `bot_started` or `bot_added`, the bot sends a welcome message with a
-   button that opens the TaskFlow mini-application.
+   button that opens the Max Канбан mini-application.
 5. An organization owner or admin links a board from the working chat.
    On mobile, the board ID is shown above the status tabs; the gear button
    opens **Board settings → Chats** with the ready-to-copy command:
@@ -167,7 +167,7 @@ reply; they never trigger webhook retries.
 3. Остальные ошибки (`chat.not.found`, `dialog.not.found`, `401`, `429`)
    возвращаются как есть — повтор бессмысленен или вреден.
 
-Следствие: бот никогда не молчит из-за панели; кнопка «Открыть TaskFlow»
+Следствие: бот никогда не молчит из-за панели; кнопка «Открыть Max Канбан»
 появляется сама, как только привязанный URL совпадёт с `FRONTEND_URL`.
 
 ### Кнопки (`message_callback` → `handleCallback`)

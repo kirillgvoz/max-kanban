@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: TaskFlow Kanban API
+  title: Max Канбан API
   version: 2.1.0
   description: |
-    Backend API for the TaskFlow Kanban MAX mini-application.
+    Backend API for the Max Канбан MAX mini-application.
     Unless stated otherwise, API operations require valid MAX WebApp
     initialization data supplied in the X-Max-InitData header.
 servers:
@@ -24,7 +24,7 @@ components:
       type: apiKey
       in: header
       name: X-Max-Bot-Api-Secret
-      description: Shared webhook secret configured on both MAX and TaskFlow.
+      description: Shared webhook secret configured on both MAX and Max Канбан.
   schemas:
     Error:
       type: object

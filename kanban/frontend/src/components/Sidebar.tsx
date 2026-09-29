@@ -20,7 +20,7 @@ export function Sidebar({ currentView, onNavigate, user, connected }: SidebarPro
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <span className="brand-mark" aria-hidden="true">T</span>
-          <span className="sidebar-logo-text">TaskFlow</span>
+          <span className="sidebar-logo-text">Max Канбан</span>
         </div>
       </div>
 

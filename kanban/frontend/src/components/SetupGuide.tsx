@@ -74,7 +74,7 @@ export function SetupGuide({ boardId, boardName, onClose }: SetupGuideProps) {
               <span className="guide-step-num" aria-hidden="true">1</span>
               <div className="guide-step-body">
                 <div className="guide-step-title">Добавьте бота в рабочий чат</div>
-                <div className="guide-step-text">В MAX откройте чат → добавить участника → найдите бота TaskFlow.</div>
+                <div className="guide-step-text">В MAX откройте чат → добавить участника → найдите бота Max Канбан.</div>
               </div>
             </li>
             <li className="guide-step">
