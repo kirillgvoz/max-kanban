@@ -65,6 +65,36 @@ func TestDecodeMaxMessage(t *testing.T) {
 	}
 }
 
+func TestOptionalMaxIDAcceptsNegativeGroupChats(t *testing.T) {
+	update := decodeUpdate(t, `{
+		"update_type": "bot_added",
+		"timestamp": 1775025604499,
+		"chat_id": -70801090403050,
+		"user": {"user_id": 123456789}
+	}`)
+	chatID, ok := optionalMaxID(update.ChatID)
+	if !ok || chatID != -70801090403050 {
+		t.Fatalf("chat_id = %d %v, want -70801090403050 true", chatID, ok)
+	}
+
+	group := decodeUpdate(t, `{
+		"update_type": "message_created",
+		"message": {"body": {"text": "/start"}, "sender": {"user_id": 123456789}, "recipient": {"chat_id": -70801090403050, "chat_type": "chat"}}
+	}`)
+	groupChatID, ok := maxMessageChat(group.Message)
+	if !ok || groupChatID != -70801090403050 {
+		t.Fatalf("group chat_id = %d %v", groupChatID, ok)
+	}
+
+	if _, ok := optionalMaxID(nil); ok {
+		t.Fatal("nil chat id accepted")
+	}
+	zero := MaxID(0)
+	if _, ok := optionalMaxID(&zero); ok {
+		t.Fatal("zero chat id accepted")
+	}
+}
+
 func TestParseChatCommand(t *testing.T) {
 	cases := []struct {
 		text    string

@@ -114,6 +114,9 @@ Commands work in dialogs and group chats (the bot must be added to the
 group). A trailing `@botname` mention, used in groups, is stripped, so
 `/start@se14445725_bot` behaves like `/start`.
 
+Group and channel `chat_id` values are negative (dialogs are positive);
+the webhook accepts any non-zero chat id.
+
 Non-text updates (stickers, media, channel posts) are acknowledged without a
 reply; they never trigger webhook retries.
 

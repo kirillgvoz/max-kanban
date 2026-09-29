@@ -82,8 +82,11 @@ func webhookEventKey(update MaxUpdate, raw []byte) string {
 	return fmt.Sprintf("%s:%d:%s", update.UpdateType, update.Timestamp.Int64(), hex.EncodeToString(sum[:]))
 }
 
+// optionalMaxID accepts any non-zero MAX identifier. Group and channel
+// chat IDs are negative (dialogs and users are positive), so only a missing
+// or zero value means "absent".
 func optionalMaxID(value *MaxID) (int64, bool) {
-	if value == nil || *value <= 0 {
+	if value == nil || *value == 0 {
 		return 0, false
 	}
 	return value.Int64(), true
