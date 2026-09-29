@@ -60,6 +60,27 @@ describe("MobileBoard", () => {
     expect(screen.queryByText("Задача 10")).not.toBeInTheDocument();
   });
 
+  it("opens board settings from the mobile board", () => {
+    const onOpenSettings = vi.fn();
+    const allTasks = [task(10, 1)];
+    render(
+      <MobileBoard
+        board={board}
+        tasks={allTasks}
+        allTasks={allTasks}
+        columns={columns}
+        onMoveTask={vi.fn()}
+        onSelectTask={vi.fn()}
+        onCreateTask={vi.fn()}
+        canManage
+        onOpenSettings={onOpenSettings}
+      />
+    );
+    expect(screen.getByText("ID #1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Настройки доски" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
   it("moves a task to the next status on a right swipe", async () => {
     const onMoveTask = renderBoard();
     const card = screen.getByText("Задача 10").closest(".swipe-task-card");

@@ -26,6 +26,7 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
   const [chats, setChats] = useState<BoardChat[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -111,6 +112,25 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
     setChatTitle("");
   });
 
+  const copyLinkCommand = async () => {
+    const command = `/link board_${board.id}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(command);
+      } else {
+        const area = document.createElement("textarea");
+        area.value = command;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      setLinkCopied(true);
+    } catch {
+      setError("Не удалось скопировать команду");
+    }
+  };
+
   const removeChat = (id: number) => {
     if (!window.confirm("Отвязать чат?")) return;
     void mutate(async () => {
@@ -177,6 +197,13 @@ export function BoardSettings({ board, tasks, user, canManage, onChanged, onArch
           )}
           {tab === "chats" && (
             <>
+              <div className="modal-props">
+                <div className="modal-prop"><span className="modal-prop-label">ID доски</span><span className="modal-prop-value">{board.id}</span></div>
+                <div className="modal-prop"><span className="modal-prop-label">Команда привязки</span><span className="modal-prop-value">{`/link board_${board.id}`}</span></div>
+              </div>
+              <div className="modal-section-actions">
+                <button className="btn btn--secondary btn--sm" onClick={() => void copyLinkCommand()}>{linkCopied ? "Скопировано" : "Скопировать команду"}</button>
+              </div>
               {chats.map((chat) => (
                 <div className="comment" key={chat.id}>
                   <div className="comment-header">

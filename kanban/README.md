@@ -47,6 +47,12 @@ curl.exe http://localhost:9300/max-kanban/api/health
 
 The production frontend is embedded in the Go binary. Local frontend development uses Vite on port 3002.
 
+After frontend changes, rebuild the production container:
+
+```powershell
+.\scripts\rebuild.ps1
+```
+
 ## Test commands
 
 Backend unit tests:
@@ -73,6 +79,7 @@ npm run build
 
 - `docs/architecture.md`
 - `docs/api.md`
+- `docs/chat-integration.md`
 - `docs/design.md`
 - `openapi.yaml`
 - `DATA-API.yaml`

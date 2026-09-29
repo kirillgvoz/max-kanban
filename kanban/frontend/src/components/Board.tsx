@@ -180,6 +180,8 @@ export function Board({
         onMoveTask={moveTask}
         onSelectTask={setSelectedTaskId}
         onCreateTask={() => setShowCreate(true)}
+        canManage={canManage}
+        onOpenSettings={() => setShowSettings(true)}
       />
     </>
   ) : (

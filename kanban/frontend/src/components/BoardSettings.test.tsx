@@ -81,6 +81,19 @@ describe("BoardSettings", () => {
     await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.body.chat_id === 77)).toBe(true));
   });
 
+  it("показывает и копирует команду привязки", async () => {
+    mockFetch(() => []);
+    const writeText = vi.fn();
+    Object.defineProperty(window.navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<BoardSettings board={board} tasks={[]} user={user} canManage onChanged={vi.fn()} onArchived={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Чаты" }));
+    expect(await screen.findByText("/link board_5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Скопировать команду" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("/link board_5"));
+    expect(await screen.findByRole("button", { name: "Скопировано" })).toBeInTheDocument();
+    delete (window.navigator as any).clipboard;
+  });
+
   it("показывает предупреждение при удалении занятого статуса", async () => {
     mockFetch(() => ({ ok: true }));
     render(<BoardSettings board={board} tasks={[{ id: 9, board_id: 5, column_id: 1, title: "Задача", description: "", position: 0, priority: "medium", deadline: null, created_by: 1, created_at: "", updated_at: "", assignees: [] }]} user={user} canManage onChanged={vi.fn()} onArchived={vi.fn()} onClose={vi.fn()} />);

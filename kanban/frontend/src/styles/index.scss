@@ -888,6 +888,42 @@ body[data-max-platform="android"] {
   flex-direction: column;
 }
 
+.mobile-board-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px 0;
+  flex-shrink: 0;
+}
+
+.mobile-board-id {
+  font-size: 12px;
+  line-height: 1.33;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mobile-settings:active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
 .mobile-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-soft);
@@ -1177,6 +1213,14 @@ body[data-max-platform="android"] {
 .modal-prop-label {
   font-size: 13px;
   color: var(--text-dim);
+}
+
+.modal-prop-value {
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .modal-prop-value .select {

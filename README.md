@@ -266,6 +266,12 @@ cd kanban
 docker compose build
 ```
 
+Пересборка production-контейнера после изменений frontend:
+
+```powershell
+.\kanban\scripts\rebuild.ps1
+```
+
 Smoke-проверка локального backend:
 
 ```powershell

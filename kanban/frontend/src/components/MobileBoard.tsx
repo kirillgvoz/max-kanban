@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardList, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Plus, Settings } from "lucide-react";
 import type { Board, Column, Task } from "../types";
 import { KanbanCardStatic } from "./KanbanCard";
 
@@ -11,11 +11,13 @@ interface MobileBoardProps {
   onMoveTask: (taskId: number, columnId: number, position: number) => Promise<void>;
   onSelectTask: (id: number) => void;
   onCreateTask: () => void;
+  canManage?: boolean;
+  onOpenSettings?: () => void;
 }
 
 const SWIPE_THRESHOLD = 60;
 
-export function MobileBoard({ tasks, allTasks, columns, onMoveTask, onSelectTask, onCreateTask }: MobileBoardProps) {
+export function MobileBoard({ board, tasks, allTasks, columns, onMoveTask, onSelectTask, onCreateTask, canManage, onOpenSettings }: MobileBoardProps) {
   const [activeTab, setActiveTab] = useState(0);
   const currentColumn = columns[activeTab] || columns[0];
   const currentTasks = currentColumn
@@ -33,6 +35,14 @@ export function MobileBoard({ tasks, allTasks, columns, onMoveTask, onSelectTask
 
   return (
     <div className="mobile-board">
+      <div className="mobile-board-bar">
+        <span className="mobile-board-id">ID #{board.id}</span>
+        {canManage && onOpenSettings && (
+          <button className="mobile-settings" onClick={onOpenSettings} aria-label="Настройки доски">
+            <Settings size={18} aria-hidden="true" />
+          </button>
+        )}
+      </div>
       <div className="mobile-tabs" role="tablist" aria-label="Статусы">
         {columns.map((column, index) => {
           const count = tasks.filter((task) => task.column_id === column.id).length;
