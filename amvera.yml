@@ -1,5 +1,10 @@
 # Amvera deploy config.
 # Build context = repo root, Dockerfile auto-discovered at root.
 # App listens on $PORT (default 9300), Amvera routes to containerPort.
+meta:
+  environment: docker
+  toolchain:
+    name: docker
+
 run:
   containerPort: 9300
