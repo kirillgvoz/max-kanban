@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,11 +25,13 @@ func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				if _, ok := allowed[origin]; ok {
 					c.AbortWithStatus(204)
 				} else {
+					log.Printf("CORS: rejected preflight origin %q for %s", origin, c.Request.URL.Path)
 					c.AbortWithStatus(403)
 				}
 				return
 			}
 			if _, ok := allowed[origin]; !ok {
+				log.Printf("CORS: rejected origin %q for %s %s", origin, c.Request.Method, c.Request.URL.Path)
 				c.AbortWithStatusJSON(403, gin.H{"error": "Origin not allowed"})
 				return
 			}
