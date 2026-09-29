@@ -80,6 +80,7 @@ npm run build
 - `docs/architecture.md`
 - `docs/api.md`
 - `docs/chat-integration.md`
+- `docs/scaling.md`
 - `docs/design.md`
 - `openapi.yaml`
 - `DATA-API.yaml`

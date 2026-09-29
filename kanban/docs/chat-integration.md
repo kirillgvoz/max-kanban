@@ -117,6 +117,110 @@ group). A trailing `@botname` mention, used in groups, is stripped, so
 Non-text updates (stickers, media, channel posts) are acknowledged without a
 reply; they never trigger webhook retries.
 
+## Как устроен обмен с чатами (message journey)
+
+### Подписка и вход
+
+1. При старте backend выполняет `setupMaxIntegration` (`main.go`):
+   `RegisterCommands` (start, tasks, new, link, unlink) и `EnsureSubscription`
+   на URL из `MAX_WEBHOOK_URL` с типами из `MAX_WEBHOOK_UPDATE_TYPES`
+   (по умолчанию `message_created,message_callback,bot_started,bot_added`).
+2. MAX присылает события через `POST /webhook` (и дубль `/max-kanban/webhook`)
+   с заголовком `X-Max-Bot-Api-Secret`.
+3. `WebhookHandler.Handle` (`handlers/webhook.go`): сверка секрета, лимит тела
+   1 МБ, разбор JSON (большие ID — через `json.Number`, потерь точности нет),
+   маршрутизация по `update_type`.
+
+### Входящее сообщение (`message_created` → `handleMessage`)
+
+1. Извлекаются текст (`message.body.text`), автор (`sender.user_id`) и чат
+   (`recipient.chat_id`).
+2. Пустые/медийные апдейты без текста, автора или чата — постоянная ошибка:
+   логируются и отвечают `200` без действий, чтобы MAX не слал бесполезные
+   ретраи.
+3. Событие записывается в `webhook_events` с уникальным `event_key`
+   (повторные доставки MAX отбрасываются дедупликацией).
+4. `parseChatCommand` делит текст на команду и аргументы, срезая хвостовое
+   `@имябота` (нужно в группах): `/start@se14445725_bot` = `/start`,
+   `/link@bot board_1` = `/link` + `board_1`.
+5. Маршрут: `/link` → `linkBoard`, `/unlink` → `unlinkBoard`,
+   `/new` → `createTaskFromChat`, `/start` и `/tasks` → `chatStatus`,
+   остальное — подсказка по командам. Привязка/отвязка требуют роли
+   `owner`/`admin` организации, создание задач — членства в организации.
+6. Бизнес-логика выполняется в транзакции, затем commit, и только потом —
+   ответ в чат. Дубль события (тот же `event_key`) делает commit и выходит
+   без повторных эффектов.
+
+### Ответы (`sendChatMessage` → `MaxBot.sendMessage`)
+
+Каждый ответ идёт через `services/maxbot.go` и содержит кнопку `open_app`
+с `web_app = FRONTEND_URL`:
+
+1. Первая попытка — как есть (с кнопкой).
+2. Если MAX отвечает `404 Link not found` или `400 Field 'webApp' cannot be
+   null` (мини-приложение не привязано в панели или URL не совпал ровно),
+   сообщение переотправляется **без** кнопки `open_app` — текст и остальные
+   кнопки (`callback`, `link`) доходят всегда. В лог пишется
+   `open_app button rejected ..., retrying without the mini-app button`.
+3. Остальные ошибки (`chat.not.found`, `dialog.not.found`, `401`, `429`)
+   возвращаются как есть — повтор бессмысленен или вреден.
+
+Следствие: бот никогда не молчит из-за панели; кнопка «Открыть TaskFlow»
+появляется сама, как только привязанный URL совпадёт с `FRONTEND_URL`.
+
+### Кнопки (`message_callback` → `handleCallback`)
+
+1. Payload `take:<task_id>` / `done:<task_id>` разбирается строго
+   (`maxCallbackAction`); чужое — `200` без действий.
+2. Дедуп по `callback_id`: повторный нажим отвечает «Действие уже
+   обработано» и ничего не двигает.
+3. Проверки: задача существует, нажавший — участник организации задачи.
+   Промах — ответ в callback + сообщение в чат через `answerAndFail`.
+4. `take` двигает задачу на следующий статус, `done` — на финальный
+   (`moveTaskTx`), затем broadcast `task:moved` по WebSocket организации и
+   постановка уведомления о статусе в outbox.
+
+### Старт и добавление (`bot_started`, `bot_added` → `handleBotStarted`)
+
+Запись события (дедуп) → `SendWelcome` с кнопкой `open_app` (с тем же
+fallback). `bot_removed` и неизвестные типы — только лог и `200`.
+
+### Уведомления (асинхронно, через outbox)
+
+Создание задачи, смена статуса, назначение и дедлайны не зовут MAX API
+напрямую, а кладут строки в `notification_outbox` с уникальным `event_key`
+(`task-created:<task>:<chat>`, `task-status:...`, `task-assigned:<task>:<user>`,
+`task-deadline:<task>:<user>:<day>`):
+
+- воркер (`services.Notifier.Run`, тик 5 секунд) забирает по одной due-строке
+  через `FOR UPDATE SKIP LOCKED` — безопасно при нескольких воркерах;
+- отправляет через `MaxBot` (тот же fallback для кнопок, но уведомления —
+  plain text и ему не подвержены);
+- успех — `sent` + пауза 500 мс (соблюдение лимита MAX ~2 msg/s на диалог
+  с запасом);
+- ошибка — `pending` с backoff `attempts²` минут (потолок 1 час), после
+  5 попыток — `failed` с текстом ошибки в `last_error`.
+
+Дедлайны ставит планировщик раз в час (`runDeadlineScheduler` в `main.go`);
+ключи содержат дату, поэтому повторы безопасны.
+
+### Диалоги и группы
+
+- `recipient.chat_type`: `dialog` (личка с ботом) или групповой чат/канал.
+- Чтобы бот видел группу, его нужно добавить (прилетит `bot_added`).
+  `chat_id` группы backend узнаёт только из входящих событий — списка чатов
+  API MAX больше не отдаёт.
+- В группах команды могут идти с `@упоминанием` — нормализация покрывает.
+- Ответы уходят по `chat_id` события; прямые уведомления пользователю —
+  по `user_id` (`SendDirectMessage`, требуется начатый диалог с ботом).
+
+### Диплинки мини-приложения
+
+Формат: `https://max.ru/<botName>?startapp=<payload>` (`BuildDeepLink`).
+Payload: только латиница, цифры, `_`, `-`, до 512 символов — более длинные
+или с лишними символами MAX вычищает. Наши payload вида `board_<id>`,
+`task_<id>` требованиям соответствуют.
+
 ## Limitations
 
 - Chat linking uses numeric MAX `chat_id` values; there is no native MAX chat picker yet.
