@@ -1,0 +1,15 @@
+# Docker build context = repo root. Keep the image lean.
+.git
+.gitignore
+legacy/
+docs/
+kanban/frontend/node_modules
+kanban/frontend/dist
+kanban/.env
+.env
+kanban/*.exe
+*.exe
+*.pdf
+*.pptx
+decode_pdf.py
+ocr_pdf.py
