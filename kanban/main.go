@@ -160,7 +160,7 @@ func redactDatabaseURL(databaseURL string) string {
 
 func setupRouter(cfg *config.Config, bot *services.MaxBot) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery(), middleware.CORSMiddleware(cfg.AllowedOrigins))
+	router.Use(gin.Logger(), gin.Recovery())
 
 	authHandler := handlers.NewAuthHandler(cfg.MaxBotToken)
 	orgHandler := handlers.NewOrgHandler()
@@ -188,6 +188,7 @@ func setupRouter(cfg *config.Config, bot *services.MaxBot) *gin.Engine {
 
 	registerAPI := func(prefix string) {
 		api := router.Group(prefix + "/api")
+		api.Use(middleware.CORSMiddleware(cfg.AllowedOrigins))
 		api.Use(middleware.AuthMiddleware(cfg.MaxBotToken))
 		api.GET("/orgs", orgHandler.List)
 		api.POST("/orgs", orgHandler.Create)
