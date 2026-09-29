@@ -23,6 +23,8 @@ services:
       - "9300:9300"
     env_file:
       - .env
+    volumes:
+      - ./certs:/app/certs:ro
     depends_on:
       postgres:
         condition: service_healthy
