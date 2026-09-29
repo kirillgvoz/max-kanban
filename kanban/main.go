@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -128,6 +129,7 @@ func runDeadlineScheduler(ctx context.Context, notifier *services.Notifier) {
 }
 
 func connectDatabase(databaseURL string) error {
+	log.Printf("Database target: %s", redactDatabaseURL(databaseURL))
 	var lastErr error
 	for attempt := 1; attempt <= 15; attempt++ {
 		attemptContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -141,6 +143,19 @@ func connectDatabase(databaseURL string) error {
 		time.Sleep(time.Second)
 	}
 	return lastErr
+}
+
+// redactDatabaseURL renders the database URL for logs with the password
+// stripped, so startup diagnostics never leak credentials.
+func redactDatabaseURL(databaseURL string) string {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil || parsed.Host == "" {
+		return "invalid-database-url"
+	}
+	if parsed.User != nil {
+		parsed.User = url.User(parsed.User.Username())
+	}
+	return parsed.Redacted()
 }
 
 func setupRouter(cfg *config.Config, bot *services.MaxBot) *gin.Engine {
