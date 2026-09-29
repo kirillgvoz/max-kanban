@@ -51,6 +51,8 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 		err = h.handleCallback(ctx, update)
 	case "bot_started", "bot_added":
 		err = h.handleBotStarted(ctx, update)
+	case "bot_removed":
+		log.Printf("bot removed from chat, bindings stay until /unlink")
 	default:
 		log.Printf("unknown update type: %s", update.UpdateType)
 	}
@@ -62,12 +64,30 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// parseChatCommand splits message text into a command word and its arguments.
+// A trailing @botname mention (used in group chats) is stripped from the
+// command word, so "/start@mybot" behaves like "/start".
+func parseChatCommand(text string) (string, string) {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return "", ""
+	}
+	command := fields[0]
+	if name, _, _ := strings.Cut(command, "@"); name != "" {
+		command = name
+	}
+	return command, strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
+}
+
 func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) error {
 	text := maxText(update.Message)
 	userID := update.Message.Sender.UserID.Int64()
 	chatID, ok := maxMessageChat(update.Message)
 	if update.Message == nil || text == "" || userID <= 0 || !ok {
-		return fmt.Errorf("invalid message update")
+		// Permanent condition (media message, channel post, malformed
+		// update): retries would never succeed, so answer 200.
+		log.Printf("webhook message_created ignored: empty sender/chat/text")
+		return nil
 	}
 	raw, _ := json.Marshal(update)
 	eventKey := webhookEventKey(update, raw)
@@ -85,9 +105,10 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 		return tx.Commit(ctx)
 	}
 
-	switch {
-	case strings.HasPrefix(text, "/link board_"):
-		response, err := h.linkBoard(ctx, tx, text, userID, chatID)
+	command, args := parseChatCommand(text)
+	switch command {
+	case "/link":
+		response, err := h.linkBoard(ctx, tx, args, userID, chatID)
 		if err != nil {
 			return err
 		}
@@ -95,8 +116,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 			return err
 		}
 		return h.sendChatMessage(ctx, chatID, response)
-	case strings.HasPrefix(text, "/unlink board_"):
-		response, err := h.unlinkBoard(ctx, tx, text, userID, chatID)
+	case "/unlink":
+		response, err := h.unlinkBoard(ctx, tx, args, userID, chatID)
 		if err != nil {
 			return err
 		}
@@ -104,8 +125,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 			return err
 		}
 		return h.sendChatMessage(ctx, chatID, response)
-	case strings.HasPrefix(text, "/new"):
-		taskID, title, err := h.createTaskFromChat(ctx, tx, text, userID, chatID)
+	case "/new":
+		taskID, title, err := h.createTaskFromChat(ctx, tx, args, userID, chatID)
 		if err != nil {
 			return err
 		}
@@ -131,8 +152,8 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 			log.Printf("queue chat task notification: %v", err)
 		}
 		return h.sendChatMessage(ctx, chatID, fmt.Sprintf("✅ Задача #%d создана: %s", taskID, title))
-	case text == "/start", text == "/tasks":
-		response, err := h.chatStatus(ctx, tx, text, chatID)
+	case "/start", "/tasks":
+		response, err := h.chatStatus(ctx, tx, command, chatID)
 		if err != nil {
 			return err
 		}
@@ -273,8 +294,9 @@ func (h *WebhookHandler) handleBotStarted(ctx context.Context, update MaxUpdate)
 	return h.Bot.SendWelcome(ctx, chatID)
 }
 
-func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, text string, userID, chatID int64) (string, error) {
-	boardID, err := positiveID(strings.TrimPrefix(text, "/link board_"))
+func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, error) {
+	ref, _, _ := strings.Cut(arg, " ")
+	boardID, err := positiveID(strings.TrimPrefix(ref, "board_"))
 	if err != nil {
 		return "Формат: /link board_<id>", nil
 	}
@@ -301,8 +323,9 @@ func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, text string, 
 	return fmt.Sprintf("Доска #%d привязана к этому чату", boardID), nil
 }
 
-func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, text string, userID, chatID int64) (string, error) {
-	boardID, err := positiveID(strings.TrimPrefix(text, "/unlink board_"))
+func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, error) {
+	ref, _, _ := strings.Cut(arg, " ")
+	boardID, err := positiveID(strings.TrimPrefix(ref, "board_"))
 	if err != nil {
 		return "Формат: /unlink board_<id>", nil
 	}
@@ -329,8 +352,8 @@ func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, text string
 	return fmt.Sprintf("Доска #%d отвязана от этого чата", boardID), nil
 }
 
-func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, text string, userID, chatID int64) (int64, string, error) {
-	title := strings.TrimSpace(strings.TrimPrefix(text, "/new"))
+func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, title string, userID, chatID int64) (int64, string, error) {
+	title = strings.TrimSpace(title)
 	if title == "" {
 		return 0, "Формат: /new Название задачи", nil
 	}

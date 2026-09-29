@@ -89,6 +89,34 @@ Task changes are also broadcast to mini-application clients over an
 organization-scoped WebSocket, so chat notifications and the board stay
 consistent.
 
+## Mini-app attachment
+
+Bot replies carry an `open_app` button whose `web_app` URL must exactly match
+the mini-app URL attached to the bot in the partner panel
+(business.max.ru → Чат-боты → ⋮ → Настройки → URL → Сохранить).
+MAX requires this field and looks the URL up as a registered link:
+
+- unattached or mismatched URL → `404 Link not found`, the whole message is
+  rejected;
+- missing `web_app` → `400 Field 'webApp' cannot be null`.
+
+To stay responsive, the bot retries once without the `open_app` button when
+MAX reports a link error, and logs that the mini-app URL needs attention.
+Text and `callback`/`link` buttons are always delivered; the “Open TaskFlow”
+button appears as soon as the attached URL matches `FRONTEND_URL` exactly.
+
+Panel URL caveats: use `https`, at most 1024 characters; if the panel rejects
+a URL with a path, serve the app from a subdomain root instead.
+
+## Chat commands
+
+Commands work in dialogs and group chats (the bot must be added to the
+group). A trailing `@botname` mention, used in groups, is stripped, so
+`/start@se14445725_bot` behaves like `/start`.
+
+Non-text updates (stickers, media, channel posts) are acknowledged without a
+reply; they never trigger webhook retries.
+
 ## Limitations
 
 - Chat linking uses numeric MAX `chat_id` values; there is no native MAX chat picker yet.

@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -231,7 +233,86 @@ func (b *MaxBot) BuildDeepLink(path string) string {
 
 func (b *MaxBot) sendMessage(ctx context.Context, query url.Values, message OutgoingMessage) error {
 	_, err := b.do(ctx, http.MethodPost, "/messages", query, message)
-	return err
+	if err == nil {
+		return nil
+	}
+	// An open_app button references the mini-app URL attached to the bot in
+	// the partner panel. If it is missing or does not match exactly, MAX
+	// rejects the whole message — but the text itself is still valuable, so
+	// retry once without the mini-app button instead of staying silent.
+	stripped, ok := stripOpenAppButtons(message)
+	if !ok || !isMiniAppLinkError(err) {
+		return err
+	}
+	log.Printf("max bot: open_app button rejected (%v), retrying without the mini-app button", err)
+	_, retryErr := b.do(ctx, http.MethodPost, "/messages", query, stripped)
+	return retryErr
+}
+
+// isMiniAppLinkError reports MAX rejections caused by an unattached or
+// mismatched mini-app URL in an open_app button: 404 "Link not found" and
+// 400 "Field 'webApp' cannot be null".
+func isMiniAppLinkError(err error) bool {
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		return false
+	}
+	body := strings.ToLower(apiErr.Body)
+	switch apiErr.Status {
+	case http.StatusNotFound:
+		return strings.Contains(body, "link")
+	case http.StatusBadRequest:
+		return strings.Contains(body, "webapp") || strings.Contains(body, "web_app")
+	default:
+		return false
+	}
+}
+
+// stripOpenAppButtons removes open_app buttons from an outgoing message,
+// dropping keyboard rows and attachments left empty. It reports whether the
+// message actually contained such buttons.
+func stripOpenAppButtons(message OutgoingMessage) (OutgoingMessage, bool) {
+	stripped := false
+	attachments := make([]any, 0, len(message.Attachments))
+	for _, attachment := range message.Attachments {
+		var keyboard *KeyboardAttachment
+		var buttons [][]Button
+		switch typed := attachment.(type) {
+		case KeyboardAttachment:
+			keyboard = &typed
+			buttons = typed.Payload.Buttons
+		case *KeyboardAttachment:
+			keyboard = typed
+			buttons = typed.Payload.Buttons
+		default:
+			attachments = append(attachments, attachment)
+			continue
+		}
+		kept := make([][]Button, 0, len(buttons))
+		for _, row := range buttons {
+			keptRow := make([]Button, 0, len(row))
+			for _, button := range row {
+				if button.Type == "open_app" {
+					stripped = true
+					continue
+				}
+				keptRow = append(keptRow, button)
+			}
+			if len(keptRow) > 0 {
+				kept = append(kept, keptRow)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		keyboard.Payload.Buttons = kept
+		attachments = append(attachments, *keyboard)
+	}
+	if !stripped {
+		return message, false
+	}
+	message.Attachments = attachments
+	return message, true
 }
 
 func (b *MaxBot) do(ctx context.Context, method, path string, query url.Values, body any) ([]byte, error) {

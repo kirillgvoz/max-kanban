@@ -64,3 +64,28 @@ func TestDecodeMaxMessage(t *testing.T) {
 		t.Fatalf("event key = %q", webhookEventKey(update, []byte("raw")))
 	}
 }
+
+func TestParseChatCommand(t *testing.T) {
+	cases := []struct {
+		text    string
+		command string
+		args    string
+	}{
+		{"/start", "/start", ""},
+		{"/tasks", "/tasks", ""},
+		{"/start@se14445725_bot", "/start", ""},
+		{"/link board_12", "/link", "board_12"},
+		{"/link@se14445725_bot board_12", "/link", "board_12"},
+		{"/unlink board_3", "/unlink", "board_3"},
+		{"/new Позвонить клиенту", "/new", "Позвонить клиенту"},
+		{"/new@se14445725_bot Позвонить клиенту", "/new", "Позвонить клиенту"},
+		{"🦆", "🦆", ""},
+		{"", "", ""},
+	}
+	for _, tc := range cases {
+		command, args := parseChatCommand(tc.text)
+		if command != tc.command || args != tc.args {
+			t.Fatalf("parseChatCommand(%q) = (%q, %q), want (%q, %q)", tc.text, command, args, tc.command, tc.args)
+		}
+	}
+}

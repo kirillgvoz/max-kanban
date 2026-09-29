@@ -67,6 +67,103 @@ func TestSendChatMessageUsesOfficialContract(t *testing.T) {
 	}
 }
 
+func TestSendChatMessageRetriesWithoutOpenAppOnLinkError(t *testing.T) {
+	var requests []recordedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded map[string]any
+		_ = json.Unmarshal(body, &decoded)
+		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, auth: r.Header.Get("Authorization"), body: decoded})
+		if len(requests) == 1 {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"code":"link.not.found","message":"Link not found"}`))
+			return
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	if err := bot.SendChatMessage(context.Background(), 123, OutgoingMessage{
+		Text: "Доска привязана",
+		Attachments: []any{InlineKeyboard([][]Button{
+			{OpenAppButton("Открыть", "https://example.com/app")},
+			{CallbackButton("Взять", "take:1")},
+		})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("requests = %d, want 2", len(requests))
+	}
+	retryed, _ := requests[1].body["attachments"].([]any)
+	if len(retryed) != 1 {
+		t.Fatalf("retried attachments = %#v", requests[1].body["attachments"])
+	}
+	keyboard, _ := retryed[0].(map[string]any)
+	payload, _ := keyboard["payload"].(map[string]any)
+	rows, _ := payload["buttons"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("retried buttons = %#v", payload["buttons"])
+	}
+	row, _ := rows[0].([]any)
+	if len(row) != 1 {
+		t.Fatalf("retried row = %#v", rows[0])
+	}
+	button, _ := row[0].(map[string]any)
+	if button["type"] != "callback" || button["payload"] != "take:1" {
+		t.Fatalf("retried button = %#v", row[0])
+	}
+	if requests[1].body["text"] != "Доска привязана" {
+		t.Fatalf("retried text = %#v", requests[1].body["text"])
+	}
+}
+
+func TestSendChatMessageNoRetryOnChatNotFound(t *testing.T) {
+	var requests []recordedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded map[string]any
+		_ = json.Unmarshal(body, &decoded)
+		requests = append(requests, recordedRequest{body: decoded})
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"code":"chat.not.found","message":"Chat not found"}`))
+	}))
+	defer server.Close()
+
+	bot := NewMaxBot("token", "bot", "https://example.com/app")
+	bot.BaseURL = server.URL
+	bot.HTTPClient = server.Client()
+	err := bot.SendChatMessage(context.Background(), 99999, OutgoingMessage{
+		Text:        "Привет",
+		Attachments: []any{InlineKeyboard([][]Button{{OpenAppButton("Открыть", "https://example.com/app")}})},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if len(requests) != 1 {
+		t.Fatalf("requests = %d, want 1", len(requests))
+	}
+}
+
+func TestStripOpenAppButtonsKeepsTextOnlyWhenAlone(t *testing.T) {
+	stripped, ok := stripOpenAppButtons(OutgoingMessage{
+		Text:        "Привет",
+		Attachments: []any{InlineKeyboard([][]Button{{OpenAppButton("Открыть", "https://example.com/app")}})},
+	})
+	if !ok {
+		t.Fatal("expected buttons to be stripped")
+	}
+	if stripped.Text != "Привет" || len(stripped.Attachments) != 0 {
+		t.Fatalf("stripped = %#v", stripped)
+	}
+	if _, ok := stripOpenAppButtons(OutgoingMessage{Text: "Привет"}); ok {
+		t.Fatal("unexpected strip without open_app buttons")
+	}
+}
+
 func TestAnswerCallback(t *testing.T) {
 	var query string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
