@@ -128,8 +128,12 @@ func (b *MaxBot) SendWelcome(ctx context.Context, chatID int64) error {
 		{OpenAppButton("📋 Открыть TaskFlow", b.FrontendURL)},
 		{LinkButton("📖 Помощь", "https://max.ru")},
 	})
+	text := "👋 Добро пожаловать в TaskFlow!\n\nУправляйте задачами прямо из мессенджера.\nСоздавайте организации, доски и работайте с командой."
+	if link := b.BuildAppLink(); link != "" {
+		text += "\n\nОткрыть приложение: " + link
+	}
 	return b.SendChatMessage(ctx, chatID, OutgoingMessage{
-		Text:        "👋 Добро пожаловать в TaskFlow!\n\nУправляйте задачами прямо из мессенджера.\nСоздавайте организации, доски и работайте с командой.",
+		Text:        text,
 		Attachments: []any{keyboard},
 	})
 }
@@ -227,8 +231,39 @@ func (b *MaxBot) EnsureSubscription(ctx context.Context, webhookURL string, upda
 	return nil
 }
 
-func (b *MaxBot) BuildDeepLink(path string) string {
-	return fmt.Sprintf("https://max.ru/%s?startapp=%s", b.BotName, url.QueryEscape(path))
+// sanitizeStartParam keeps only characters allowed in a startapp payload
+// (latin letters, digits, underscore, hyphen, up to 512 symbols).
+func sanitizeStartParam(payload string) string {
+	var kept []rune
+	for _, r := range payload {
+		if len(kept) >= 512 {
+			break
+		}
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' {
+			kept = append(kept, r)
+		}
+	}
+	return string(kept)
+}
+
+// BuildAppLink returns the plain mini-app link (no payload).
+// Empty when the bot name is unknown.
+func (b *MaxBot) BuildAppLink() string {
+	if strings.TrimSpace(b.BotName) == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://max.ru/%s?startapp", b.BotName)
+}
+
+// BuildDeepLink returns a mini-app deep link with a startapp payload.
+// The payload is sanitized to the MAX alphabet; empty payload or unknown
+// bot name yields an empty string.
+func (b *MaxBot) BuildDeepLink(payload string) string {
+	safe := sanitizeStartParam(payload)
+	if safe == "" || strings.TrimSpace(b.BotName) == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://max.ru/%s?startapp=%s", b.BotName, safe)
 }
 
 func (b *MaxBot) sendMessage(ctx context.Context, query url.Values, message OutgoingMessage) error {

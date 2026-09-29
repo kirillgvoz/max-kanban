@@ -15,6 +15,7 @@ interface Window {
       chat?: {
         id: number;
       };
+      start_param?: unknown;
     };
     initData?: string;
     platform?: string;

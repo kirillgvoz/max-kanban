@@ -219,10 +219,20 @@ fallback). `bot_removed` и неизвестные типы — только л�
 
 ### Диплинки мини-приложения
 
-Формат: `https://max.ru/<botName>?startapp=<payload>` (`BuildDeepLink`).
+Формат: `https://max.ru/<botName>?startapp=<payload>` (`BuildDeepLink`,
+payload санитизируется под алфавит MAX, пустое имя бота даёт пустую строку).
 Payload: только латиница, цифры, `_`, `-`, до 512 символов — более длинные
 или с лишними символами MAX вычищает. Наши payload вида `board_<id>`,
 `task_<id>` требованиям соответствуют.
+
+Сообщения бота уже содержат диплинки: приветствие — ссылку на приложение,
+`/link` — на доску (`board_<id>`), `/new` — на задачу (`task_<id>`).
+Фронт читает payload при старте (`useStartParam`: сначала
+`window.WebApp.initDataUnsafe.start_param`, запасной вариант — query-параметр
+`?startapp=`) и один раз навигирует: `board_<id>` — сразу на доску,
+`task_<id>` — через задачу на её доску (цепочка `tasks.get → boards.get →
+orgs.get`). Неизвестный id или отсутствие доступа — молча остаёмся на
+стартовом экране.
 
 ## Limitations
 

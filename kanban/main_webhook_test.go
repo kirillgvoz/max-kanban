@@ -228,7 +228,7 @@ func TestWebhookCallbackRejectsNonMember(t *testing.T) {
 }
 
 func TestWebhookChatCommands(t *testing.T) {
-	ctx, maxServer, _, _ := prepareWebhookDatabase(t)
+	ctx, maxServer, maxCalls, _ := prepareWebhookDatabase(t)
 	server, _ := setupWebhookRouter(t, maxServer.URL)
 	boardID, _, _ := seedChatBoard(t, ctx)
 	if _, err := db.Pool.Exec(ctx, `DELETE FROM board_chats WHERE board_id = $1`, boardID); err != nil {
@@ -249,6 +249,18 @@ func TestWebhookChatCommands(t *testing.T) {
 	}
 	if count := countRows(t, ctx, `SELECT COUNT(*) FROM board_chats WHERE board_id = $1 AND chat_id = 77`, boardID); count != 1 {
 		t.Fatalf("board chats = %d, want 1", count)
+	}
+	linkReply := false
+	for _, call := range maxCalls.calls {
+		if call.path != "/messages" || !strings.Contains(call.query, "chat_id=77") {
+			continue
+		}
+		if text, _ := call.body["text"].(string); strings.Contains(text, fmt.Sprintf("https://max.ru/bot?startapp=board_%d", boardID)) {
+			linkReply = true
+		}
+	}
+	if !linkReply {
+		t.Fatalf("link reply without board deep link: %#v", maxCalls.calls)
 	}
 
 	create := map[string]any{

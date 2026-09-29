@@ -164,6 +164,33 @@ func TestStripOpenAppButtonsKeepsTextOnlyWhenAlone(t *testing.T) {
 	}
 }
 
+func TestBuildDeepLink(t *testing.T) {
+	bot := NewMaxBot("token", "mybot", "https://example.com/app")
+	if got := bot.BuildDeepLink("board_12"); got != "https://max.ru/mybot?startapp=board_12" {
+		t.Fatalf("deep link = %q", got)
+	}
+	if got := bot.BuildDeepLink("board/12 ..\u2713"); got != "https://max.ru/mybot?startapp=board12" {
+		t.Fatalf("sanitized deep link = %q", got)
+	}
+	if got := bot.BuildDeepLink("..."); got != "" {
+		t.Fatalf("empty payload deep link = %q", got)
+	}
+	if got := bot.BuildAppLink(); got != "https://max.ru/mybot?startapp" {
+		t.Fatalf("app link = %q", got)
+	}
+	nameless := NewMaxBot("token", "", "https://example.com/app")
+	if got := nameless.BuildDeepLink("board_1"); got != "" {
+		t.Fatalf("nameless deep link = %q", got)
+	}
+	if got := nameless.BuildAppLink(); got != "" {
+		t.Fatalf("nameless app link = %q", got)
+	}
+	long := strings.Repeat("a", 600)
+	if got := bot.BuildDeepLink(long); len(got) != len("https://max.ru/mybot?startapp=")+512 {
+		t.Fatalf("capped deep link length = %d", len(got))
+	}
+}
+
 func TestAnswerCallback(t *testing.T) {
 	var query string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

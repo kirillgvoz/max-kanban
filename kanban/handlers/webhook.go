@@ -151,7 +151,11 @@ func (h *WebhookHandler) handleMessage(ctx context.Context, update MaxUpdate) er
 		if err := services.NotifyTaskCreated(context.Background(), task.BoardID, task.ID, task.Title); err != nil {
 			log.Printf("queue chat task notification: %v", err)
 		}
-		return h.sendChatMessage(ctx, chatID, fmt.Sprintf("✅ Задача #%d создана: %s", taskID, title))
+		response := fmt.Sprintf("✅ Задача #%d создана: %s", taskID, title)
+		if link := h.Bot.BuildDeepLink(fmt.Sprintf("task_%d", taskID)); link != "" {
+			response += "\nОткрыть задачу: " + link
+		}
+		return h.sendChatMessage(ctx, chatID, response)
 	case "/start", "/tasks":
 		response, err := h.chatStatus(ctx, tx, command, chatID)
 		if err != nil {
@@ -320,7 +324,11 @@ func (h *WebhookHandler) linkBoard(ctx context.Context, tx pgx.Tx, arg string, u
 	if _, err := tx.Exec(ctx, `INSERT INTO board_chats (board_id, chat_id, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, boardID, chatID, userID); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Доска #%d привязана к этому чату", boardID), nil
+	response := fmt.Sprintf("Доска #%d привязана к этому чату", boardID)
+	if link := h.Bot.BuildDeepLink(fmt.Sprintf("board_%d", boardID)); link != "" {
+		response += "\nОткрыть доску: " + link
+	}
+	return response, nil
 }
 
 func (h *WebhookHandler) unlinkBoard(ctx context.Context, tx pgx.Tx, arg string, userID, chatID int64) (string, error) {
@@ -422,7 +430,11 @@ func (h *WebhookHandler) createTaskFromChat(ctx context.Context, tx pgx.Tx, titl
 
 func (h *WebhookHandler) chatStatus(ctx context.Context, tx pgx.Tx, text string, chatID int64) (string, error) {
 	if text == "/start" {
-		return "👋 Добро пожаловать в TaskFlow! Используйте /link board_<id> в рабочем чате, чтобы подключить доску.", nil
+		response := "👋 Добро пожаловать в TaskFlow! Используйте /link board_<id> в рабочем чате, чтобы подключить доску."
+		if link := h.Bot.BuildAppLink(); link != "" {
+			response += "\n\nОткрыть приложение: " + link
+		}
+		return response, nil
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT b.id, b.name, COUNT(t.id) FILTER (WHERE t.deadline IS NOT NULL AND t.deadline <= CURRENT_DATE + 7)
