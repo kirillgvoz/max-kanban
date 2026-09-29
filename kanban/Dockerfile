@@ -18,6 +18,7 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=go-build /taskflow .
 COPY db/migrations ./db/migrations
+COPY certs ./certs
 
 EXPOSE 9300
 CMD ["./taskflow"]
